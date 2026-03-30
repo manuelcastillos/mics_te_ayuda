@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MICS Te Ayuda</title>
+    <meta name="description" content="Seguimiento en tiempo real de la micro 601 y 302 hacia FACIMAR UV">
+    <meta name="theme-color" content="#1a2f5e">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Leaflet.js (mapa gratuito, sin API key) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Leaflet.heat (calor de puntos) -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- PANTALLA 1: Splash -->
+    <div id="splash-screen" class="screen active">
+        <div class="splash-content">
+            <div class="logo-area">
+                <div class="logo-icon">🚌</div>
+                <h1 class="app-title">MICS<br><span>Te Ayuda</span></h1>
+                <p class="app-tagline">Seguimiento en tiempo real hacia FACIMAR · UV Viña del Mar</p>
+            </div>
+            <div class="privacy-notice">
+                <div class="privacy-icon">🔒</div>
+                <p>Uso <strong>100% anónimo</strong>. Solo compartimos tu posición mientras estás en la micro. Sin nombre, sin cuenta.</p>
+            </div>
+            <button class="btn-primary" onclick="showScreen('main-screen')">
+                Entrar sin registrarme →
+            </button>
+            <p class="demo-badge">🟡 Modo demo activo — datos simulados</p>
+        </div>
+    </div>
+
+    <!-- PANTALLA 2: Principal -->
+    <div id="main-screen" class="screen">
+        <header class="app-header">
+            <div class="header-logo">🚌 MICS Te Ayuda</div>
+            <div id="app-clock-main" class="header-clock">00:00:00</div>
+            <button class="btn-map-link" onclick="showScreen('map-screen')">
+                Ver Mapa 🗺️
+            </button>
+        </header>
+
+        <main class="main-content">
+            <!-- Status card -->
+            <section class="status-section">
+                <div class="status-card">
+                    <div class="status-icon" id="status-icon">📍</div>
+                    <div class="status-text">
+                        <h2 id="status-title">¿Estás en la micro?</h2>
+                        <p id="status-subtitle">Comparte tu posición para ayudar a tus colegas llegar a FACIMAR</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Selector de micro -->
+            <section id="selector-section">
+                <h3 class="section-title">¿Cuál micro tomaste?</h3>
+                <div class="micro-grid">
+                    <button class="micro-btn micro-601" onclick="selectMicro('601')" id="btn-601">
+                        <span class="micro-number">601</span>
+                        <span class="micro-label">Viña → FACIMAR</span>
+                    </button>
+                    <button class="micro-btn micro-302" onclick="selectMicro('302')" id="btn-302">
+                        <span class="micro-number">302</span>
+                        <span class="micro-label">Valpo → FACIMAR</span>
+                    </button>
+                    <button class="micro-btn micro-otro" onclick="selectMicro('otro')" id="btn-otro">
+                        <span class="micro-number">Otra</span>
+                        <span class="micro-label">Otra ruta</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Tracking activo -->
+            <section class="tracking-section hidden" id="tracking-section">
+                <div class="tracking-active">
+                    <div class="pulse-ring"></div>
+                    <div class="tracking-info">
+                        <strong id="tracking-micro">Micro 601</strong>
+                        <span id="tracking-coords">Solicitando GPS...</span>
+                        <span id="tracking-time">Iniciado hace 0 min</span>
+                    </div>
+                </div>
+                <button class="btn-stop" onclick="stopTracking()">
+                    ⏹ Llegué — Detener seguimiento
+                </button>
+                <p class="tracking-note">Tu punto aparece en el mapa en vivo · Actualiza cada 3 min</p>
+            </section>
+
+            <!-- Viajeros activos -->
+            <section class="active-travelers">
+                <div class="travelers-card">
+                    <div class="travelers-count" id="travelers-count">–</div>
+                    <div class="travelers-label">en camino a FACIMAR ahora</div>
+                </div>
+                <div class="travelers-breakdown">
+                    <span class="tag tag-601" id="count-601">601: –</span>
+                    <span class="tag tag-302" id="count-302">302: –</span>
+                    <span class="tag tag-otro" id="count-otro">Otra: –</span>
+                </div>
+                <p class="demo-note">🟡 Datos simulados — en producción son en tiempo real</p>
+            </section>
+        </main>
+    </div>
+
+    <!-- PANTALLA 3: Mapa -->
+    <div id="map-screen" class="screen">
+        <header class="app-header">
+            <button class="btn-back" onclick="showScreen('main-screen')">← Volver</button>
+            <div id="app-clock-map" class="header-clock">00:00:00</div>
+            <div class="filter-btns">
+                <button class="filter-btn active" onclick="filterMap('all')" id="filter-all">Todos</button>
+                <button class="filter-btn" onclick="filterMap('601')" id="filter-601">601</button>
+                <button class="filter-btn" onclick="filterMap('302')" id="filter-302">302</button>
+            </div>
+        </header>
+        <div id="map"></div>
+        <div class="map-legend">
+            <div class="legend-item"><span class="dot dot-601"></span>Micro 601</div>
+            <div class="legend-item"><span class="dot dot-302"></span>Micro 302</div>
+            <div class="legend-item"><span class="dot dot-facimar"></span>FACIMAR</div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
+
+</body>
+</html>
