@@ -8,8 +8,15 @@
 const FACIMAR_LAT = -32.957119;
 const FACIMAR_LNG = -71.549831;
 
-// Modo demo: usa datos simulados en lugar de Firebase
-const DEMO_MODE = true;
+// Modo producción: si es false, intentará conectar a Firebase
+const DEMO_MODE = false;
 
-// (Opcional para producción) Firebase config
-const FIREBASE_CONFIG = null;
+// Para que funcione, pega aquí el objeto de configuración que te da la consola de Firebase
+const FIREBASE_CONFIG = {
+    apiKey: "TU-API-KEY",
+    authDomain: "TU-PROYECTO.firebaseapp.com",
+    projectId: "TU-PROYECTO",
+    storageBucket: "TU-PROYECTO.firebasestorage.app",
+    messagingSenderId: "TU-ID",
+    appId: "TU-APP-ID"
+};

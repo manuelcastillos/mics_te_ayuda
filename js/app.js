@@ -12,11 +12,16 @@ let startTime     = null;
 let trackingTimer = null;
 let leafletMap    = null;
 let myMarker      = null;
-let demoMarkers   = [];
-let demoInterval  = null;
 let activeFilter  = 'all';
 let arrivedAtFacimar = false;
 let lastSyncTime = null;
+
+// ---- Inicialización de Firebase ----
+let db = null;
+if (!DEMO_MODE && typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+}
 
 // Colores por micro
 const COLORS = {
@@ -94,95 +99,45 @@ function interpolateRoute(route, progress) {
     };
 }
 
-// ---- Actualizar posiciones demo ----
-function updateDemoPositions() {
-    const now = Date.now();
-    let counts = { '601': 0, '302': 0, 'otro': 0 };
-    let active = [];
+// ---- Gestión del Mapa (Usuarios Reales) ----
+let remoteMarkers = {}; 
 
-    demoTravelers = demoTravelers.filter(t => t.progress < 1.0);
+function updateMapMarkers(activeUsers) {
+    const existingIds = new Set(activeUsers.map(u => u.id));
 
-    demoTravelers.forEach(t => {
-        t.progress = Math.min(1.0, t.progress + 0.02); // +2% cada tick
-        const route = DEMO_ROUTES[t.micro] || DEMO_ROUTES['601'];
-        const pos   = interpolateRoute(route, t.progress);
-        t.lat = pos.lat;
-        t.lng = pos.lng;
-
-        if (counts[t.micro] !== undefined) counts[t.micro]++;
-        if (t.progress < 1.0) active.push(t);
-    });
-
-    // Añadir nuevos viajeros aleatoriamente
-    if (Math.random() < 0.15) {
-        const micro = Math.random() < 0.6 ? '601' : '302';
-        demoTravelers.push({
-            id: 'demo_' + Date.now(),
-            micro,
-            progress: 0,
-            lat: DEMO_ROUTES[micro][0].lat,
-            lng: DEMO_ROUTES[micro][0].lng
-        });
-    }
-
-    // Actualizar contadores UI
-    const total = demoTravelers.length;
-    document.getElementById('travelers-count').textContent = total;
-    document.getElementById('count-601').textContent = '601: ' + counts['601'];
-    document.getElementById('count-302').textContent = '302: ' + counts['302'];
-    document.getElementById('count-otro').textContent = 'Otra: ' + (counts['otro'] || 0);
-
-    // Actualizar markers del mapa
-    if (leafletMap) updateDemoMapMarkers();
-}
-
-// ---- Actualizar markers en el mapa Leaflet ----
-function updateDemoMapMarkers() {
-    const existingIds = new Set(demoTravelers.map(t => t.id));
-
-    // Eliminar markers de viajeros que ya llegaron
-    Object.keys(demoMarkerRefs).forEach(id => {
+    // Eliminar markers de usuarios que desaparecieron
+    Object.keys(remoteMarkers).forEach(id => {
         if (!existingIds.has(id)) {
-            leafletMap.removeLayer(demoMarkerRefs[id]);
-            delete demoMarkerRefs[id];
+            leafletMap.removeLayer(remoteMarkers[id]);
+            delete remoteMarkers[id];
         }
     });
 
     // Actualizar / crear markers
-    demoTravelers.forEach(t => {
-        if (activeFilter !== 'all' && t.micro !== activeFilter) {
-            if (demoMarkerRefs[t.id]) demoMarkerRefs[t.id].setOpacity(0);
+    activeUsers.forEach(u => {
+        if (u.id === myUserId) return; // No duplicar mi propio marcador
+        if (activeFilter !== 'all' && u.micro !== activeFilter) {
+            if (remoteMarkers[u.id]) remoteMarkers[u.id].setOpacity(0);
             return;
         }
 
-        const color = COLORS[t.micro] || '#fff';
+        const color = COLORS[u.micro] || '#fff';
         const icon = L.divIcon({
             className: '',
-            html: `<div style="
-                width:16px;height:16px;
-                background:${color};
-                border:2px solid white;
-                border-radius:50%;
-                box-shadow:0 0 8px ${color}88;
-            "></div>`,
+            html: `<div style="width:16px;height:16px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 8px ${color}88;"></div>`,
             iconSize: [16, 16],
             iconAnchor: [8, 8]
         });
 
-        if (demoMarkerRefs[t.id]) {
-            demoMarkerRefs[t.id].setLatLng([t.lat, t.lng]);
-            demoMarkerRefs[t.id].setOpacity(1);
+        if (remoteMarkers[u.id]) {
+            remoteMarkers[u.id].setLatLng([u.lat, u.lng]);
+            remoteMarkers[u.id].setOpacity(1);
         } else {
-            demoMarkerRefs[t.id] = L.marker([t.lat, t.lng], { icon })
+            remoteMarkers[u.id] = L.marker([u.lat, u.lng], { icon })
                 .addTo(leafletMap)
-                .bindPopup(`🚌 Micro ${t.micro}`);
+                .bindPopup(`🚌 Micro ${u.micro}`);
         }
     });
-
-    // Actualizar marker del usuario real si está activo
-    if (myMarker && selectedMicro) {
-        // El marker del usuario propio ya se actualiza con watchPosition
-    }
 }
 
 // ---- Inicializar mapa Leaflet ----
@@ -264,8 +219,43 @@ function initMapIfNeeded() {
         document.head.appendChild(s);
     }
 
-    // Iniciar actualización de puntos demo
-    updateDemoMapMarkers();
+    // Iniciar escucha de datos reales o simulación
+    if (!DEMO_MODE && db) {
+        initRealTimeUpdates();
+    } else {
+        setInterval(updateDemoSimulation, 2000);
+    }
+}
+
+function initRealTimeUpdates() {
+    db.collection("viajeros").onSnapshot((snapshot) => {
+        let counts = { '601': 0, '302': 0, 'otro': 0 };
+        const now = Date.now();
+        const activeUsersList = [];
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            const lastUpdate = data.lastUpdate ? data.lastUpdate.toMillis() : 0;
+
+            // Mostrar solo usuarios activos en los últimos 15 min
+            if (now - lastUpdate < 900000) {
+                activeUsersList.push({ id: doc.id, ...data });
+                if (counts[data.micro] !== undefined) counts[data.micro]++;
+            }
+        });
+
+        document.getElementById('travelers-count').textContent = activeUsersList.length;
+        document.getElementById('count-601').textContent = '601: ' + counts['601'];
+        document.getElementById('count-302').textContent = '302: ' + counts['302'];
+        document.getElementById('count-otro').textContent = 'Otra: ' + (counts['otro'] || 0);
+
+        if (leafletMap) updateMapMarkers(activeUsersList);
+    });
+}
+
+function updateDemoSimulation() {
+    // Lógica mínima para que el modo demo siga funcionando si se activa
+    document.getElementById('travelers-count').textContent = "Demo";
 }
 
 // ---- Reloj en tiempo real ----
@@ -390,13 +380,13 @@ function showTrackingUI(micro) {
     showToast('✅ ¡Estás en el mapa! Tus colegas pueden verte.');
 }
 
-// ---- Publicar posición (en modo demo, solo local) ----
+// ---- Publicar posición (Firestore o Local) ----
 function publishMyPosition(lat, lng, micro) {
     lastSyncTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('tracking-coords').textContent =
-        `📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    document.getElementById('tracking-coords').textContent = `📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     document.getElementById('status-subtitle').textContent = `Última actualización: ${lastSyncTime}`;
 
+    // Dibujar mi propio marcador
     if (leafletMap) {
         const color = COLORS[micro];
         const icon = L.divIcon({
@@ -406,9 +396,15 @@ function publishMyPosition(lat, lng, micro) {
             iconAnchor: [10, 10]
         });
         if (myMarker) leafletMap.removeLayer(myMarker);
-        myMarker = L.marker([lat, lng], { icon })
-            .addTo(leafletMap)
-            .bindPopup('📍 Tú');
+        myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap).bindPopup('📍 Tú');
+    }
+
+    // Enviar a Firebase si está activo
+    if (!DEMO_MODE && db) {
+        db.collection("viajeros").doc(myUserId).set({
+            lat, lng, micro,
+            lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(err => console.error("Error subiendo posición:", err));
     }
 
     // ---- Geovalla: detener automáticamente al llegar a FACIMAR ----
@@ -417,6 +413,9 @@ function publishMyPosition(lat, lng, micro) {
         if (dist <= ARRIVAL_RADIUS_M) {
             arrivedAtFacimar = true;
             showToast('🎓 ¡Llegaste a FACIMAR! Seguimiento detenido automáticamente.');
+            if (!DEMO_MODE && db) {
+                db.collection("viajeros").doc(myUserId).delete();
+            }
             setTimeout(() => {
                 stopTracking();
                 arrivedAtFacimar = false;
@@ -477,10 +476,5 @@ function showToast(msg) {
 }
 window.showToast = showToast;
 
-// ---- Iniciar simulación en tiempo real ----
-demoInterval = setInterval(() => {
-    updateDemoPositions();
-}, 2000); // Cada 2 segundos
-
-// Carga inicial de contadores
-updateDemoPositions();
+// Carga inicial (Firebase se encarga del resto tras initMap)
+updateClock();
