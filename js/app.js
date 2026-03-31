@@ -140,7 +140,7 @@ function updateMapMarkers(activeUsers) {
         } else {
             remoteMarkers[u.id] = L.marker([u.lat, u.lng], { icon })
                 .addTo(leafletMap)
-                .bindPopup(`🚌 Micro ${u.micro}`);
+                .bindPopup(`🚌 ${u.micro}`);
         }
     });
 }
@@ -205,9 +205,8 @@ function initMapIfNeeded() {
     L.marker([FACIMAR_LAT, FACIMAR_LNG], { icon: facimar_icon })
         .addTo(leafletMap)
         .bindPopup(`
-            <div style="font-family:sans-serif;">
-                <strong>📍 FACIMAR · UV</strong><br>
-                <span style="font-size:0.85em;">Facultad de Ciencias del Mar<br>y de Recursos Naturales<br>Universidad de Valparaíso</span>
+            <div style="font-family:sans-serif; text-align:center;">
+                <strong>📍 FACIMAR UV</strong>
             </div>`)
         .openPopup();
 
@@ -330,7 +329,7 @@ function updateDemoSimulation() {
         } else {
             demoMarkerRefs[u.id] = L.marker([pos.lat, pos.lng], { icon })
                 .addTo(leafletMap)
-                .bindPopup(`🚌 Demo ${u.micro}`);
+                .bindPopup(`🚌 ${u.micro}`);
         }
 
         // Respetar filtro
@@ -367,22 +366,32 @@ function requestCustomMicro() {
 window.requestCustomMicro = requestCustomMicro;
 
 function confirmCustomMicro() {
-    const val = document.getElementById('custom-micro-name').value.trim();
+    const val = document.getElementById('custom-micro-name').value.trim().toLowerCase();
     if (!val) {
         showToast('⚠️ Por favor escribe el número de la micro');
         return;
     }
+    
+    // Validación: Solo números o la palabra "tren"
+    const isNumber = /^\d+$/.test(val);
+    const isTren = (val === 'tren');
+    
+    if (!isNumber && !isTren) {
+        showToast('⚠️ Solo se permiten números o la palabra "tren"');
+        return;
+    }
+
     document.getElementById('custom-micro-area').classList.add('hidden');
-    selectMicro(val);
+    selectMicro(val.toUpperCase());
 }
 window.confirmCustomMicro = confirmCustomMicro;
 
 function selectMicro(micro) {
     selectedMicro = micro;
-    const label = (micro === '601' || micro === '302') ? `Micro ${micro}` : `Micro ${micro}`;
+    const label = (micro === '601' || micro === '302' || micro === 'TREN') ? `${micro}` : `${micro}`;
 
     document.querySelectorAll('.micro-btn').forEach(b => b.style.opacity = '0.4');
-    const specificBtn = document.getElementById(`btn-${micro}`);
+    const specificBtn = document.getElementById(`btn-${micro.toLowerCase()}`);
     if (specificBtn) specificBtn.style.opacity = '1';
     else document.getElementById('btn-otro').style.opacity = '1';
 
@@ -476,7 +485,10 @@ function startDemoTracking(micro) {
 function showTrackingUI(micro) {
     document.getElementById('selector-section').classList.add('hidden');
     document.getElementById('tracking-section').classList.remove('hidden');
-    document.getElementById('tracking-micro').textContent = `Micro ${micro}`;
+    document.getElementById('tracking-micro').textContent = `${micro}`;
+    const btnStopMap = document.getElementById('btn-stop-map');
+    if (btnStopMap) btnStopMap.classList.add('active');
+
     document.getElementById('status-icon').textContent = '🚌';
     document.getElementById('status-title').textContent = '¡Compartiendo posición!';
     document.getElementById('status-subtitle').textContent = 'Tus colegas te ven en el mapa en vivo';
@@ -549,6 +561,9 @@ function stopTracking() {
     selectedMicro = null;
     document.getElementById('selector-section').classList.remove('hidden');
     document.getElementById('tracking-section').classList.add('hidden');
+    const btnStopMap = document.getElementById('btn-stop-map');
+    if (btnStopMap) btnStopMap.classList.remove('active');
+
     document.querySelectorAll('.micro-btn').forEach(b => b.style.opacity = '1');
     document.getElementById('status-icon').textContent = '📍';
     document.getElementById('status-title').textContent = '¿Estás en la micro?';
@@ -557,6 +572,14 @@ function stopTracking() {
     showToast('👋 ¡Gracias! Tu posición fue retirada del mapa.');
 }
 window.stopTracking = stopTracking;
+
+function confirmStopTracking() {
+    if (confirm('¿Deseas dejar de compartir tu ubicación?')) {
+        stopTracking();
+        showScreen('main-screen');
+    }
+}
+window.confirmStopTracking = confirmStopTracking;
 
 // ---- Timer de tracking ----
 function updateTrackingTime() {

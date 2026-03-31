@@ -35,6 +35,9 @@
             <button class="btn-primary" onclick="showScreen('main-screen')">
                 Empezar 🚀
             </button>
+            <div class="dev-link">
+                <a href="https://manuelcastillos.github.io/" target="_blank">Desarrollada por Manuel I. Castillo</a>
+            </div>
         </div>
     </div>
 
@@ -66,11 +69,11 @@
                 <div class="micro-grid">
                     <button class="micro-btn micro-601" onclick="selectMicro('601')" id="btn-601">
                         <span class="micro-number">601</span>
-                        <span class="micro-label">Viña → FACIMAR</span>
+                        <span class="micro-label">Valpo → FACIMAR</span>
                     </button>
                     <button class="micro-btn micro-302" onclick="selectMicro('302')" id="btn-302">
                         <span class="micro-number">302</span>
-                        <span class="micro-label">Valpo → FACIMAR</span>
+                        <span class="micro-label">Interior → FACIMAR</span>
                     </button>
                     <button class="micro-btn micro-otro" onclick="requestCustomMicro()" id="btn-otro">
                         <span class="micro-number">Otra</span>
@@ -123,6 +126,7 @@
             <button class="btn-back" onclick="showScreen('main-screen')">← Volver</button>
             <div id="app-clock-map" class="header-clock">00:00:00</div>
             <div class="filter-header-right">
+                <button class="btn-stop-mini" onclick="confirmStopTracking()" id="btn-stop-map" title="Detener Seguimiento">⏹</button>
                 <div class="filter-btns">
                     <button class="filter-btn active" onclick="filterMap('all')" id="filter-all">Todos</button>
                     <button class="filter-btn" onclick="filterMap('601')" id="filter-601">601</button>
@@ -133,9 +137,8 @@
         </header>
         <div id="map"></div>
         <div class="map-legend">
-            <div class="legend-item"><span class="dot dot-601"></span>Micro 601</div>
-            <div class="legend-item"><span class="dot dot-302"></span>Micro 302</div>
-            <div class="legend-item"><span class="dot dot-facimar"></span>FACIMAR</div>
+            <div class="legend-item"><span class="dot dot-601"></span>601</div>
+            <div class="legend-item"><span class="dot dot-302"></span>302</div>
         </div>
     </div>
 
