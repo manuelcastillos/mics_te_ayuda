@@ -503,6 +503,8 @@ html, body {
     flex-direction: column;
     gap: 0.5rem;
     border: 1px solid rgba(255,255,255,0.1);
+    z-index: 1000; /* Asegura estar sobre el mapa */
+    pointer-events: none; /* Permite clics a través hacia el mapa si es necesario */
 }
 
 .legend-item {
