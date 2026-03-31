@@ -10,7 +10,9 @@ const STATIC_ASSETS = [
     './css/style.css',
     './js/config.js',
     './js/app.js',
-    './manifest.json'
+    './manifest.json',
+    './assets/icon-192.png',
+    './assets/icon-512.png'
 ];
 
 // Instalar y cachear assets estáticos

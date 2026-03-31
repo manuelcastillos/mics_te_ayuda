@@ -254,8 +254,41 @@ function initRealTimeUpdates() {
 }
 
 function updateDemoSimulation() {
-    // Lógica mínima para que el modo demo siga funcionando si se activa
-    document.getElementById('travelers-count').textContent = "Demo";
+    if (!leafletMap) return;
+
+    // Actualizar progreso de cada viajero demo
+    demoTravelers.forEach(u => {
+        u.progress += 0.005; // Avanzar un poco
+        if (u.progress > 1) u.progress = 0; // Reiniciar si llega a FACIMAR
+
+        const route = DEMO_ROUTES[u.micro] || DEMO_ROUTES['601'];
+        const pos = interpolateRoute(route, u.progress);
+        
+        const color = COLORS[u.micro] || '#fff';
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="width:14px;height:14px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 6px ${color};"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+
+        if (demoMarkerRefs[u.id]) {
+            demoMarkerRefs[u.id].setLatLng([pos.lat, pos.lng]);
+        } else {
+            demoMarkerRefs[u.id] = L.marker([pos.lat, pos.lng], { icon })
+                .addTo(leafletMap)
+                .bindPopup(`🚌 Demo ${u.micro}`);
+        }
+
+        // Respetar filtro
+        if (activeFilter !== 'all' && u.micro !== activeFilter) {
+            demoMarkerRefs[u.id].setOpacity(0);
+        } else {
+            demoMarkerRefs[u.id].setOpacity(1);
+        }
+    });
+
+    document.getElementById('travelers-count').textContent = demoTravelers.length;
 }
 
 // ---- Reloj en tiempo real ----
@@ -463,7 +496,13 @@ function filterMap(filter) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     const fb = document.getElementById(`filter-${filter}`);
     if (fb) fb.classList.add('active');
-    if (leafletMap) updateDemoMapMarkers();
+    
+    // Forzar actualización inmediata para que el usuario vea el cambio
+    if (!DEMO_MODE && db) {
+        // En modo Firebase la escucha de snapshots lo hará solo
+    } else {
+        updateDemoSimulation();
+    }
 }
 window.filterMap = filterMap;
 
@@ -478,3 +517,13 @@ window.showToast = showToast;
 
 // Carga inicial (Firebase se encarga del resto tras initMap)
 updateClock();
+
+// ---- Service Worker Registration (PWA) ----
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        const swPath = window.location.pathname.includes('/mics_te_ayuda/') ? '/mics_te_ayuda/sw.js' : 'sw.js';
+        navigator.serviceWorker.register(swPath)
+            .then(reg => console.log('[PWA] Service Worker registrado', reg))
+            .catch(err => console.error('[PWA] Error registrando SW', err));
+    });
+}
