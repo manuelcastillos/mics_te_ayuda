@@ -296,6 +296,52 @@ html, body {
     gap: 1rem;
 }
 
+.custom-micro-area {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.8rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.custom-micro-area input {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius);
+    padding: 1rem;
+    color: white;
+    font-family: 'Outfit', sans-serif;
+    outline: none;
+    transition: var(--transition);
+}
+
+.custom-micro-area input:focus {
+    border-color: var(--accent-otro);
+    background: rgba(167,139,250,0.1);
+}
+
+.btn-confirm {
+    background: var(--accent-otro);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius);
+    padding: 0 1.5rem;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-confirm:hover {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+}
+
 .micro-btn:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow);
@@ -479,6 +525,12 @@ html, body {
 .dot-facimar { background: white; box-shadow: 0 0 6px white; }
 
 /* ---- FILTER BUTTONS ---- */
+.filter-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
 .filter-btns {
     display: flex;
     gap: 0.4rem;
@@ -501,6 +553,31 @@ html, body {
     background: var(--accent);
     color: var(--bg);
     border-color: var(--accent);
+}
+
+.btn-heatmap-toggle {
+    width: 38px;
+    height: 38px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-heatmap-toggle:hover {
+    background: rgba(255,255,255,0.15);
+    transform: scale(1.1);
+}
+
+.btn-heatmap-toggle.active {
+    background: #f77f00;
+    border-color: #fdba74;
+    box-shadow: 0 0 15px rgba(247,127,0,0.4);
 }
 
 /* ---- TOAST ---- */

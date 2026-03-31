@@ -14,21 +14,26 @@ let leafletMap    = null;
 let myMarker      = null;
 let activeFilter  = 'all';
 let arrivedAtFacimar = false;
-let lastSyncTime = null;
+let lastSyncTime     = null;
+let heatmapLayer     = null;
+let heatmapActive    = false; // Estado del heatmap (apagado por defecto)
 
 // ---- Inicialización de Firebase ----
 let db = null;
 if (!DEMO_MODE && typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
     firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.firestore();
+    db = firebase.database(); // <-- Migración a Realtime Database
 }
 
 // Colores por micro
 const COLORS = {
     '601': '#f77f00',
     '302': '#06d6a0',
-    'otro': '#a78bfa'
+    'default': '#a78bfa'
 };
+function getColor(micro) {
+    return COLORS[micro] || COLORS['default'];
+}
 
 // Radio de llegada a FACIMAR (metros)
 const ARRIVAL_RADIUS_M = 30;
@@ -121,7 +126,7 @@ function updateMapMarkers(activeUsers) {
             return;
         }
 
-        const color = COLORS[u.micro] || '#fff';
+        const color = getColor(u.micro);
         const icon = L.divIcon({
             className: '',
             html: `<div style="width:16px;height:16px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 8px ${color}88;"></div>`,
@@ -218,6 +223,14 @@ function initMapIfNeeded() {
             }`;
         document.head.appendChild(s);
     }
+    
+    // ---- Capa de Calor (Heatmap) ----
+    heatmapLayer = L.heatLayer([], {
+        radius: 35,
+        blur: 15,
+        maxZoom: 14,
+        gradient: {0.4: 'blue', 0.65: 'lime', 1: 'yellow'}
+    }); // No añadir al mapa aún
 
     // Iniciar escucha de datos reales o simulación
     if (!DEMO_MODE && db) {
@@ -228,43 +241,83 @@ function initMapIfNeeded() {
 }
 
 function initRealTimeUpdates() {
-    db.collection("viajeros").onSnapshot((snapshot) => {
-        let counts = { '601': 0, '302': 0, 'otro': 0 };
+    db.ref("viajeros").on("value", (snapshot) => {
+        let counts = {};
         const now = Date.now();
         const activeUsersList = [];
 
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            const lastUpdate = data.lastUpdate ? data.lastUpdate.toMillis() : 0;
+        snapshot.forEach((child) => {
+            const data = child.val();
+            const lastUpdate = data.lastUpdate || 0;
 
-            // Mostrar solo usuarios activos en los últimos 15 min
             if (now - lastUpdate < 900000) {
-                activeUsersList.push({ id: doc.id, ...data });
-                if (counts[data.micro] !== undefined) counts[data.micro]++;
+                activeUsersList.push({ id: child.key, ...data });
+                counts[data.micro] = (counts[data.micro] || 0) + 1;
             }
         });
 
         document.getElementById('travelers-count').textContent = activeUsersList.length;
-        document.getElementById('count-601').textContent = '601: ' + counts['601'];
-        document.getElementById('count-302').textContent = '302: ' + counts['302'];
-        document.getElementById('count-otro').textContent = 'Otra: ' + (counts['otro'] || 0);
+        
+        // Actualizar breakdown dinámicamente
+        const container = document.querySelector('.travelers-breakdown');
+        container.innerHTML = '';
+        Object.keys(counts).sort().forEach(m => {
+            const color = getColor(m);
+            const tag = document.createElement('span');
+            tag.className = 'tag';
+            tag.style.background = `${color}22`;
+            tag.style.color = color;
+            tag.textContent = `${m}: ${counts[m]}`;
+            container.appendChild(tag);
+        });
 
-        if (leafletMap) updateMapMarkers(activeUsersList);
+        if (leafletMap) {
+            updateMapMarkers(activeUsersList);
+            updateHeatmap(activeUsersList);
+        }
     });
 }
+
+function updateHeatmap(users) {
+    if (!heatmapLayer) return;
+    const points = users
+        .filter(u => activeFilter === 'all' || u.micro === activeFilter)
+        .map(u => [u.lat, u.lng, 0.8]); // lat, lng, intensidad
+    heatmapLayer.setLatLngs(points);
+}
+
+function toggleHeatmap() {
+    if (!leafletMap || !heatmapLayer) return;
+    
+    heatmapActive = !heatmapActive;
+    const btn = document.getElementById('btn-heatmap');
+    
+    if (heatmapActive) {
+        heatmapLayer.addTo(leafletMap);
+        btn.classList.add('active');
+        showToast('🔥 Modo Densidad ACTIVADO');
+    } else {
+        leafletMap.removeLayer(heatmapLayer);
+        btn.classList.remove('active');
+        showToast('📍 Modo Densidad DESACTIVADO');
+    }
+}
+window.toggleHeatmap = toggleHeatmap;
 
 function updateDemoSimulation() {
     if (!leafletMap) return;
 
     // Actualizar progreso de cada viajero demo
+    const activeDemoUsers = [];
     demoTravelers.forEach(u => {
         u.progress += 0.005; // Avanzar un poco
         if (u.progress > 1) u.progress = 0; // Reiniciar si llega a FACIMAR
 
         const route = DEMO_ROUTES[u.micro] || DEMO_ROUTES['601'];
         const pos = interpolateRoute(route, u.progress);
+        activeDemoUsers.push({ id: u.id, micro: u.micro, lat: pos.lat, lng: pos.lng });
         
-        const color = COLORS[u.micro] || '#fff';
+        const color = getColor(u.micro);
         const icon = L.divIcon({
             className: '',
             html: `<div style="width:14px;height:14px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 6px ${color};"></div>`,
@@ -289,6 +342,7 @@ function updateDemoSimulation() {
     });
 
     document.getElementById('travelers-count').textContent = demoTravelers.length;
+    updateHeatmap(activeDemoUsers);
 }
 
 // ---- Reloj en tiempo real ----
@@ -303,15 +357,37 @@ function updateClock() {
 setInterval(updateClock, 1000);
 
 // ---- Selección de micro e inicio de tracking ----
+function requestCustomMicro() {
+    document.getElementById('custom-micro-area').classList.remove('hidden');
+    document.getElementById('custom-micro-name').focus();
+    // Resetear opacidad de botones
+    document.querySelectorAll('.micro-btn').forEach(b => b.style.opacity = '0.4');
+    document.getElementById('btn-otro').style.opacity = '1';
+}
+window.requestCustomMicro = requestCustomMicro;
+
+function confirmCustomMicro() {
+    const val = document.getElementById('custom-micro-name').value.trim();
+    if (!val) {
+        showToast('⚠️ Por favor escribe el número de la micro');
+        return;
+    }
+    document.getElementById('custom-micro-area').classList.add('hidden');
+    selectMicro(val);
+}
+window.confirmCustomMicro = confirmCustomMicro;
+
 function selectMicro(micro) {
     selectedMicro = micro;
-    const labels = { '601': 'Micro 601', '302': 'Micro 302', 'otro': 'Otra línea' };
+    const label = (micro === '601' || micro === '302') ? `Micro ${micro}` : `Micro ${micro}`;
 
     document.querySelectorAll('.micro-btn').forEach(b => b.style.opacity = '0.4');
-    document.getElementById(`btn-${micro}`).style.opacity = '1';
+    const specificBtn = document.getElementById(`btn-${micro}`);
+    if (specificBtn) specificBtn.style.opacity = '1';
+    else document.getElementById('btn-otro').style.opacity = '1';
 
     document.getElementById('status-icon').textContent = '📡';
-    document.getElementById('status-title').textContent = `${labels[micro]} seleccionada`;
+    document.getElementById('status-title').textContent = `${label} seleccionada`;
     document.getElementById('status-subtitle').textContent = 'Solicitando acceso a tu GPS...';
 
     startTracking(micro);
@@ -398,10 +474,9 @@ function startDemoTracking(micro) {
 
 // ---- Mostrar UI de tracking activo ----
 function showTrackingUI(micro) {
-    const labels = { '601': 'Micro 601', '302': 'Micro 302', 'otro': 'Otra línea' };
     document.getElementById('selector-section').classList.add('hidden');
     document.getElementById('tracking-section').classList.remove('hidden');
-    document.getElementById('tracking-micro').textContent = labels[micro];
+    document.getElementById('tracking-micro').textContent = `Micro ${micro}`;
     document.getElementById('status-icon').textContent = '🚌';
     document.getElementById('status-title').textContent = '¡Compartiendo posición!';
     document.getElementById('status-subtitle').textContent = 'Tus colegas te ven en el mapa en vivo';
@@ -421,7 +496,7 @@ function publishMyPosition(lat, lng, micro) {
 
     // Dibujar mi propio marcador
     if (leafletMap) {
-        const color = COLORS[micro];
+        const color = getColor(micro);
         const icon = L.divIcon({
             className: '',
             html: `<div style="width:20px;height:20px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 0 12px ${color};"></div>`,
@@ -434,9 +509,9 @@ function publishMyPosition(lat, lng, micro) {
 
     // Enviar a Firebase si está activo
     if (!DEMO_MODE && db) {
-        db.collection("viajeros").doc(myUserId).set({
+        db.ref("viajeros/" + myUserId).set({
             lat, lng, micro,
-            lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+            lastUpdate: firebase.database.ServerValue.TIMESTAMP
         }).catch(err => console.error("Error subiendo posición:", err));
     }
 
@@ -447,7 +522,7 @@ function publishMyPosition(lat, lng, micro) {
             arrivedAtFacimar = true;
             showToast('🎓 ¡Llegaste a FACIMAR! Seguimiento detenido automáticamente.');
             if (!DEMO_MODE && db) {
-                db.collection("viajeros").doc(myUserId).delete();
+                db.ref("viajeros/" + myUserId).remove();
             }
             setTimeout(() => {
                 stopTracking();

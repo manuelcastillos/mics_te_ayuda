@@ -72,10 +72,16 @@
                         <span class="micro-number">302</span>
                         <span class="micro-label">Valpo → FACIMAR</span>
                     </button>
-                    <button class="micro-btn micro-otro" onclick="selectMicro('otro')" id="btn-otro">
+                    <button class="micro-btn micro-otro" onclick="requestCustomMicro()" id="btn-otro">
                         <span class="micro-number">Otra</span>
-                        <span class="micro-label">Otra ruta</span>
+                        <span class="micro-label">Otras líneas</span>
                     </button>
+                </div>
+
+                <!-- Input para micro personalizada -->
+                <div id="custom-micro-area" class="custom-micro-area hidden">
+                    <input type="text" id="custom-micro-name" placeholder="Escribe el n° (ej: 704)" maxlength="8">
+                    <button class="btn-confirm" onclick="confirmCustomMicro()">Confirmar ✅</button>
                 </div>
             </section>
 
@@ -116,10 +122,13 @@
         <header class="app-header">
             <button class="btn-back" onclick="showScreen('main-screen')">← Volver</button>
             <div id="app-clock-map" class="header-clock">00:00:00</div>
-            <div class="filter-btns">
-                <button class="filter-btn active" onclick="filterMap('all')" id="filter-all">Todos</button>
-                <button class="filter-btn" onclick="filterMap('601')" id="filter-601">601</button>
-                <button class="filter-btn" onclick="filterMap('302')" id="filter-302">302</button>
+            <div class="filter-header-right">
+                <div class="filter-btns">
+                    <button class="filter-btn active" onclick="filterMap('all')" id="filter-all">Todos</button>
+                    <button class="filter-btn" onclick="filterMap('601')" id="filter-601">601</button>
+                    <button class="filter-btn" onclick="filterMap('302')" id="filter-302">302</button>
+                </div>
+                <button class="btn-heatmap-toggle" onclick="toggleHeatmap()" id="btn-heatmap" title="Modo Densidad (Heatmap)">🔥</button>
             </div>
         </header>
         <div id="map"></div>
@@ -135,7 +144,7 @@
 
     <!-- Scripts de Firebase (v10+ Compat para esta configuración) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
     <!-- Scripts de la App -->
     <script src="js/config.js"></script>

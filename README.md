@@ -37,11 +37,18 @@ App PWA de seguimiento anónimo en tiempo real de la micro 601 y 302 hacia FACIM
 
 ### 3. Verificar coordenadas de FACIMAR
 
-En `js/config.js` están las coordenadas, verifica que sean correctas:
+En `js/config.js` están las coordenadas de Montemar (Viña del Mar), verifica que sean correctas:
 ```js
-const FACIMAR_LAT = -33.0390;
-const FACIMAR_LNG = -71.5915;
+const FACIMAR_LAT = -32.957119;
+const FACIMAR_LNG = -71.549831;
 ```
+
+## Características Técnicas
+
+- **PWA**: Instalable en Android e iPhone. Funciona offline.
+- **Realtime DB**: Seguimiento en tiempo real con latencia mínima.
+- **Heatmap**: Visualización de densidad de pasajeros (botón 🔥 en el mapa).
+- **Multiusuario**: Soporte para cualquier línea de micro mediante entrada personalizada.
 
 ## Probar localmente
 
