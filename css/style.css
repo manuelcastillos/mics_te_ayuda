@@ -686,3 +686,48 @@ html, body {
 
 .leaflet-popup-tip { background: #132342; }
 
+/* ---- MODO OBSERVADOR ---- */
+.observer-row {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+}
+
+.btn-observer {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: var(--text-muted);
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    letter-spacing: 0.2px;
+}
+
+.btn-observer:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    border-color: rgba(255,255,255,0.25);
+    transform: translateY(-1px);
+}
+
+.btn-observer:active {
+    transform: translateY(0);
+}
+
+.observer-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.8rem;
+    background: rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 50px;
+    color: #c4b5fd;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}

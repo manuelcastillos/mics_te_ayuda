@@ -16,6 +16,7 @@ const DEMO_MODE = false;
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyAFu993bWK7CsGaFEp6PnAp8tGEMLPUcoA",
     authDomain: "mics-te-ayuda.firebaseapp.com",
+    databaseURL: "https://mics-te-ayuda-default-rtdb.firebaseio.com",
     projectId: "mics-te-ayuda",
     storageBucket: "mics-te-ayuda.firebasestorage.app",
     messagingSenderId: "194692607089",

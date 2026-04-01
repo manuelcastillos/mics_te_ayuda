@@ -86,6 +86,13 @@
                     <input type="text" id="custom-micro-name" placeholder="Escribe el n° (ej: 704)" maxlength="8">
                     <button class="btn-confirm" onclick="confirmCustomMicro()">Confirmar ✅</button>
                 </div>
+
+                <!-- Modo Observador -->
+                <div class="observer-row">
+                    <button class="btn-observer" onclick="startObserving()" id="btn-observer">
+                        👀 Solo quiero ver el mapa
+                    </button>
+                </div>
             </section>
 
             <!-- Tracking activo -->
@@ -126,6 +133,9 @@
             <button class="btn-back" onclick="showScreen('main-screen')">← Volver</button>
             <div id="app-clock-map" class="header-clock">00:00:00</div>
             <div class="filter-header-right">
+                <div id="observer-badge" class="observer-badge" style="display:none;">
+                    👁️ Solo viendo
+                </div>
                 <button class="btn-stop-mini" onclick="confirmStopTracking()" id="btn-stop-map" title="Detener Seguimiento">⏹</button>
                 <div class="filter-btns">
                     <button class="filter-btn active" onclick="filterMap('all')" id="filter-all">Todos</button>

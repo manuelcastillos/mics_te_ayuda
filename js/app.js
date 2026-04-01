@@ -1,7 +1,6 @@
 // ============================================================
 // MICS TE AYUDA — app.js
-// Modo DEMO: Leaflet.js + OpenStreetMap + Simulación en tiempo real
-// Sin Firebase, sin Google Maps, funciona inmediatamente
+// Leaflet.js + OpenStreetMap + Firebase Realtime Database
 // ============================================================
 
 // ---- Estado global ----
@@ -16,13 +15,19 @@ let activeFilter  = 'all';
 let arrivedAtFacimar = false;
 let lastSyncTime     = null;
 let heatmapLayer     = null;
-let heatmapActive    = false; // Estado del heatmap (apagado por defecto)
+let heatmapActive    = false;
+let observerMode     = false; // Modo solo-ver: conecta a Firebase pero no publica posición
 
 // ---- Inicialización de Firebase ----
 let db = null;
-if (!DEMO_MODE && typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.database(); // <-- Migración a Realtime Database
+try {
+    if (!DEMO_MODE && typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        db = firebase.database();
+        console.log('[MICS] Firebase Realtime Database conectado ✅');
+    }
+} catch(e) {
+    console.error('[MICS] Error al inicializar Firebase:', e);
 }
 
 // Colores por micro
@@ -107,6 +112,14 @@ function interpolateRoute(route, progress) {
 // ---- Gestión del Mapa (Usuarios Reales) ----
 let remoteMarkers = {}; 
 
+function timeAgo(timestamp) {
+    if (!timestamp) return '';
+    const diffMin = Math.floor((Date.now() - timestamp) / 60000);
+    if (diffMin < 1) return 'ahora mismo';
+    if (diffMin === 1) return 'hace 1 min';
+    return `hace ${diffMin} min`;
+}
+
 function updateMapMarkers(activeUsers) {
     const existingIds = new Set(activeUsers.map(u => u.id));
 
@@ -120,27 +133,36 @@ function updateMapMarkers(activeUsers) {
 
     // Actualizar / crear markers
     activeUsers.forEach(u => {
-        if (u.id === myUserId) return; // No duplicar mi propio marcador
+        if (!observerMode && u.id === myUserId) return; // No duplicar mi propio marcador
         if (activeFilter !== 'all' && u.micro !== activeFilter) {
             if (remoteMarkers[u.id]) remoteMarkers[u.id].setOpacity(0);
             return;
         }
 
         const color = getColor(u.micro);
+        const isMe = (u.id === myUserId);
+        const size = isMe ? 22 : 16;
+        const border = isMe ? '3px solid white' : '2px solid white';
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:16px;height:16px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 8px ${color}88;"></div>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
+            html: `<div style="width:${size}px;height:${size}px;background:${color};border:${border};border-radius:50%;box-shadow:0 0 ${isMe ? 14 : 8}px ${color}88;"></div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
         });
+
+        const popupText = isMe
+            ? `📍 Tú · 🚌 ${u.micro}`
+            : `🚌 Micro ${u.micro} · ${timeAgo(u.lastUpdate)}`;
 
         if (remoteMarkers[u.id]) {
             remoteMarkers[u.id].setLatLng([u.lat, u.lng]);
             remoteMarkers[u.id].setOpacity(1);
+            remoteMarkers[u.id].setPopupContent(popupText);
+            remoteMarkers[u.id].setIcon(icon);
         } else {
             remoteMarkers[u.id] = L.marker([u.lat, u.lng], { icon })
                 .addTo(leafletMap)
-                .bindPopup(`🚌 ${u.micro}`);
+                .bindPopup(popupText);
         }
     });
 }
@@ -237,6 +259,10 @@ function initMapIfNeeded() {
     } else {
         setInterval(updateDemoSimulation, 2000);
     }
+
+    // Badge de modo observador
+    const badge = document.getElementById('observer-badge');
+    if (badge) badge.style.display = observerMode ? 'flex' : 'none';
 }
 
 function initRealTimeUpdates() {
@@ -500,7 +526,22 @@ function showTrackingUI(micro) {
     showToast('✅ ¡Estás en el mapa! Tus colegas pueden verte.');
 }
 
-// ---- Publicar posición (Firestore o Local) ----
+// ---- Modo Observador: ver sin compartir ----
+function startObserving() {
+    observerMode = true;
+    showToast('👁️ Modo observador — ves a todos, sin compartir tu posición');
+    showScreen('map-screen');
+    // Asegurar que la escucha de Firebase está activa
+    if (!DEMO_MODE && db && leafletMap) {
+        initRealTimeUpdates();
+    }
+    // Mostrar badge
+    const badge = document.getElementById('observer-badge');
+    if (badge) badge.style.display = 'flex';
+}
+window.startObserving = startObserving;
+
+// ---- Publicar posición (Firebase o Local) ----
 function publishMyPosition(lat, lng, micro) {
     lastSyncTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
     document.getElementById('tracking-coords').textContent = `📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
