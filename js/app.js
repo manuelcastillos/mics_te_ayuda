@@ -20,11 +20,17 @@ let observerMode     = false; // Modo solo-ver: conecta a Firebase pero no publi
 
 // ---- Inicialización de Firebase ----
 let db = null;
+let serverTimeOffset = 0;
 try {
     if (!DEMO_MODE && typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
         firebase.initializeApp(FIREBASE_CONFIG);
         db = firebase.database();
         console.log('[MICS] Firebase Realtime Database conectado ✅');
+        
+        // Sincronizar el tiempo local con el servidor de Firebase
+        db.ref('.info/serverTimeOffset').on('value', function(snapshot) {
+            serverTimeOffset = snapshot.val() || 0;
+        });
     }
 } catch(e) {
     console.error('[MICS] Error al inicializar Firebase:', e);
@@ -32,12 +38,19 @@ try {
 
 // Colores por micro
 const COLORS = {
-    '601': '#f77f00',
-    '302': '#06d6a0',
+    '601': '#e63946',
+    '302': '#2a6fdb',
     'default': '#a78bfa'
 };
 function getColor(micro) {
     return COLORS[micro] || COLORS['default'];
+}
+
+// Generador de SVG para la micro
+function getBusIconHTML(color) {
+    return `<svg style="filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.7));" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <path fill="${color}" stroke="#ffffff" stroke-width="20" stroke-linejoin="round" d="M32 48A48 48 0 0 1 80 0h352a48 48 0 0 1 48 48v352a48 48 0 0 1-48 48v32a32 32 0 1 1-64 0v-32H144v32a32 32 0 1 1-64 0v-32a48 48 0 0 1-48-48V48zm80 48v80a16 16 0 0 0 16 16h256a16 16 0 0 0 16-16V96a16 16 0 0 0-16-16H128a16 16 0 0 0-16 16zm-16 224a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm256 32a32 32 0 1 0 64 0 32 32 0 1 0-64 0zm0-192h-224v48h224v-48z"/>
+</svg>`;
 }
 
 // Radio de llegada a FACIMAR (metros)
@@ -141,11 +154,10 @@ function updateMapMarkers(activeUsers) {
 
         const color = getColor(u.micro);
         const isMe = (u.id === myUserId);
-        const size = isMe ? 22 : 16;
-        const border = isMe ? '3px solid white' : '2px solid white';
+        const size = isMe ? 36 : 28;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${size}px;height:${size}px;background:${color};border:${border};border-radius:50%;box-shadow:0 0 ${isMe ? 14 : 8}px ${color}88;"></div>`,
+            html: `<div style="width:${size}px;height:${size}px; ${isMe ? 'transform:scale(1.15);' : ''}">${getBusIconHTML(color)}</div>`,
             iconSize: [size, size],
             iconAnchor: [size/2, size/2]
         });
@@ -181,8 +193,8 @@ function initMapIfNeeded() {
         attributionControl: true
     });
 
-    // Tiles oscuros de CartoDB
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // Tiles claros de CartoDB (Voyager)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap contributors © CARTO',
         subdomains: 'abcd',
         maxZoom: 19
@@ -268,7 +280,7 @@ function initMapIfNeeded() {
 function initRealTimeUpdates() {
     db.ref("viajeros").on("value", (snapshot) => {
         let counts = {};
-        const now = Date.now();
+        const now = Date.now() + serverTimeOffset; // Tiempo actual sincronizado con Firebase
         const activeUsersList = [];
 
         snapshot.forEach((child) => {
@@ -343,11 +355,12 @@ function updateDemoSimulation() {
         activeDemoUsers.push({ id: u.id, micro: u.micro, lat: pos.lat, lng: pos.lng });
         
         const color = getColor(u.micro);
+        const size = 28;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:14px;height:14px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 6px ${color};"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
+            html: `<div style="width:${size}px;height:${size}px;">${getBusIconHTML(color)}</div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
         });
 
         if (demoMarkerRefs[u.id]) {
@@ -429,6 +442,9 @@ function selectMicro(micro) {
 }
 window.selectMicro = selectMicro;
 
+// ---- Variables del tracker ----
+let watchPublishInterval = null;
+
 // ---- Iniciar tracking GPS ----
 function startTracking(micro) {
     if (!navigator.geolocation) {
@@ -437,27 +453,34 @@ function startTracking(micro) {
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            showTrackingUI(micro);
-            const { latitude, longitude } = pos.coords;
-            publishMyPosition(latitude, longitude, micro);
+    let isFirstPosition = true;
+    window.latestPos = null;
 
-            // Actualizar cada 3 minutos (180.000 ms)
-            watchId = setInterval(() => {
-                navigator.geolocation.getCurrentPosition(
-                    (p) => publishMyPosition(p.coords.latitude, p.coords.longitude, micro),
-                    () => {},
-                    { enableHighAccuracy: true }
-                );
-            }, 180000);
+    watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            if (isFirstPosition) {
+                showTrackingUI(micro);
+                isFirstPosition = false;
+                publishMyPosition(pos.coords.latitude, pos.coords.longitude, micro);
+            }
+            window.latestPos = pos;
         },
-        () => {
-            showToast('ℹ️ GPS no disponible — usando posición simulada');
-            startDemoTracking(micro);
+        (err) => {
+            if (isFirstPosition) {
+                showToast('ℹ️ GPS no disponible (' + err.message + ') — usando modo demo');
+                startDemoTracking(micro);
+                isFirstPosition = false;
+            }
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
+
+    // Publicar la posición en Firebase cada 15 segundos en lugar de 3 minutos
+    watchPublishInterval = setInterval(() => {
+        if (window.latestPos && !arrivedAtFacimar) {
+            publishMyPosition(window.latestPos.coords.latitude, window.latestPos.coords.longitude, micro);
+        }
+    }, 15000);
 }
 
 // ---- Demo tracking (sin GPS real) ----
@@ -473,11 +496,12 @@ function startDemoTracking(micro) {
 
         if (leafletMap) {
             const color = COLORS[micro];
+            const size = 36;
             const icon = L.divIcon({
                 className: '',
-                html: `<div style="width:20px;height:20px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 0 12px ${color};"></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
+                html: `<div style="width:${size}px;height:${size}px;">${getBusIconHTML(color)}</div>`,
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
             });
             if (myMarker) leafletMap.removeLayer(myMarker);
             myMarker = L.marker([pos.lat, pos.lng], { icon })
@@ -550,11 +574,12 @@ function publishMyPosition(lat, lng, micro) {
     // Dibujar mi propio marcador
     if (leafletMap) {
         const color = getColor(micro);
+        const size = 36;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:20px;height:20px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 0 12px ${color};"></div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
+            html: `<div style="width:${size}px;height:${size}px;">${getBusIconHTML(color)}</div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
         });
         if (myMarker) leafletMap.removeLayer(myMarker);
         myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap).bindPopup('📍 Tú');
@@ -595,6 +620,10 @@ function stopTracking() {
             clearInterval(watchId);
         }
         watchId = null;
+    }
+    if (watchPublishInterval !== null) {
+        clearInterval(watchPublishInterval);
+        watchPublishInterval = null;
     }
     clearInterval(trackingTimer);
     if (myMarker && leafletMap) { leafletMap.removeLayer(myMarker); myMarker = null; }
