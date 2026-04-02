@@ -731,6 +731,32 @@ window.showToast = showToast;
 // Carga inicial (Firebase se encarga del resto tras initMap)
 updateClock();
 
+// ---- SHARE APP (Web Share API & Fallback Modal) ----
+function openShareOptions() {
+    const shareData = {
+        title: 'MICS Te Ayuda',
+        text: '¡Descarga MICS Te Ayuda para ver las micros hacia FACIMAR en tiempo real!',
+        url: 'https://manuelcastillos.github.io/mics_te_ayuda/'
+    };
+
+    if (navigator.share) {
+        navigator.share(shareData)
+                 .then(() => console.log('Contenido compartido con éxito'))
+                 .catch((err) => console.log('La acción de compartir fue cancelada o falló:', err));
+    } else {
+        // Mostrar Modal con QR si el explorador (o desktop) rechaza invocar las opciones nativas
+        document.getElementById('share-modal-overlay').classList.remove('hidden');
+        document.getElementById('share-modal').classList.remove('hidden');
+    }
+}
+window.openShareOptions = openShareOptions;
+
+function closeShareModal() {
+    document.getElementById('share-modal-overlay').classList.add('hidden');
+    document.getElementById('share-modal').classList.add('hidden');
+}
+window.closeShareModal = closeShareModal;
+
 // ---- Service Worker Registration (PWA) ----
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

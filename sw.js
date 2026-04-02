@@ -3,7 +3,7 @@
 // Permite instalación como PWA y funcionamiento básico offline
 // ============================================================
 
-const CACHE_NAME = 'mics-te-ayuda-v7';
+const CACHE_NAME = 'mics-te-ayuda-v8';
 const STATIC_ASSETS = [
     './',
     './index.html',
