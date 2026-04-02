@@ -46,10 +46,20 @@ function getColor(micro) {
     return COLORS[micro] || COLORS['default'];
 }
 
-// Generador de SVG para la micro
+// Generador de SVG para la micro (vista de lado)
 function getBusIconHTML(color) {
-    return `<svg style="filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.7));" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
-  <path fill="${color}" stroke="#ffffff" stroke-width="20" stroke-linejoin="round" d="M32 48A48 48 0 0 1 80 0h352a48 48 0 0 1 48 48v352a48 48 0 0 1-48 48v32a32 32 0 1 1-64 0v-32H144v32a32 32 0 1 1-64 0v-32a48 48 0 0 1-48-48V48zm80 48v80a16 16 0 0 0 16 16h256a16 16 0 0 0 16-16V96a16 16 0 0 0-16-16H128a16 16 0 0 0-16 16zm-16 224a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm256 32a32 32 0 1 0 64 0 32 32 0 1 0-64 0zm0-192h-224v48h224v-48z"/>
+    return `<svg style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5));" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+  <path d="M 8,15 Q 8,8 15,8 L 80,8 Q 95,8 96,25 L 96,48 Q 96,52 92,52 L 8,52 Q 4,52 4,48 Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
+  <rect x="12" y="14" width="18" height="18" rx="2" fill="#ffffff" />
+  <rect x="34" y="14" width="22" height="18" rx="2" fill="#ffffff" />
+  <rect x="60" y="14" width="16" height="18" rx="2" fill="#ffffff" />
+  <path d="M 80,14 L 87,14 Q 91,14 93.5,28 L 80,28 Z" fill="#ffffff"/>
+  <circle cx="25" cy="52" r="8" fill="#222" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="75" cy="52" r="8" fill="#222" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="25" cy="52" r="3" fill="#ccc"/>
+  <circle cx="75" cy="52" r="3" fill="#ccc"/>
+  <rect x="94" y="42" width="4" height="6" rx="1" fill="#facc15" />
+  <rect x="2" y="36" width="3" height="8" rx="1" fill="#ef4444" />
 </svg>`;
 }
 
@@ -154,12 +164,13 @@ function updateMapMarkers(activeUsers) {
 
         const color = getColor(u.micro);
         const isMe = (u.id === myUserId);
-        const size = isMe ? 36 : 28;
+        const sizeHeight = isMe ? 32 : 24;
+        const sizeWidth = sizeHeight * 1.6;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${size}px;height:${size}px; ${isMe ? 'transform:scale(1.15);' : ''}">${getBusIconHTML(color)}</div>`,
-            iconSize: [size, size],
-            iconAnchor: [size/2, size/2]
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px; ${isMe ? 'transform:scale(1.15);' : ''}">${getBusIconHTML(color)}</div>`,
+            iconSize: [sizeWidth, sizeHeight],
+            iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
 
         const popupText = isMe
@@ -355,12 +366,13 @@ function updateDemoSimulation() {
         activeDemoUsers.push({ id: u.id, micro: u.micro, lat: pos.lat, lng: pos.lng });
         
         const color = getColor(u.micro);
-        const size = 28;
+        const sizeHeight = 24;
+        const sizeWidth = sizeHeight * 1.6;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${size}px;height:${size}px;">${getBusIconHTML(color)}</div>`,
-            iconSize: [size, size],
-            iconAnchor: [size/2, size/2]
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color)}</div>`,
+            iconSize: [sizeWidth, sizeHeight],
+            iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
 
         if (demoMarkerRefs[u.id]) {
@@ -496,12 +508,13 @@ function startDemoTracking(micro) {
 
         if (leafletMap) {
             const color = COLORS[micro];
-            const size = 36;
+            const sizeHeight = 32;
+            const sizeWidth = sizeHeight * 1.6;
             const icon = L.divIcon({
                 className: '',
-                html: `<div style="width:${size}px;height:${size}px;">${getBusIconHTML(color)}</div>`,
-                iconSize: [size, size],
-                iconAnchor: [size/2, size/2]
+                html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color)}</div>`,
+                iconSize: [sizeWidth, sizeHeight],
+                iconAnchor: [sizeWidth/2, sizeHeight/2]
             });
             if (myMarker) leafletMap.removeLayer(myMarker);
             myMarker = L.marker([pos.lat, pos.lng], { icon })
@@ -574,12 +587,13 @@ function publishMyPosition(lat, lng, micro) {
     // Dibujar mi propio marcador
     if (leafletMap) {
         const color = getColor(micro);
-        const size = 36;
+        const sizeHeight = 32;
+        const sizeWidth = sizeHeight * 1.6;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${size}px;height:${size}px;">${getBusIconHTML(color)}</div>`,
-            iconSize: [size, size],
-            iconAnchor: [size/2, size/2]
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color)}</div>`,
+            iconSize: [sizeWidth, sizeHeight],
+            iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
         if (myMarker) leafletMap.removeLayer(myMarker);
         myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap).bindPopup('📍 Tú');
