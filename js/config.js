@@ -9,7 +9,7 @@ const FACIMAR_LAT = -32.957119;
 const FACIMAR_LNG = -71.549831;
 
 // Modo producción: si es false, intentará conectar a Firebase
-const DEMO_MODE = false;
+const DEMO_MODE = true;
 
 // Para que funcione, pega aquí el objeto de configuración que te da la consola de Firebase
 // Estos valores se inyectan automáticamente desde los Secrets de GitHub durante el despliegue

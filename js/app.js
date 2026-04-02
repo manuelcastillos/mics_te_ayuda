@@ -47,8 +47,12 @@ function getColor(micro) {
 }
 
 // Generador de SVG para la micro (vista de lado)
-function getBusIconHTML(color) {
-    return `<svg style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5));" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+function getBusIconHTML(color, count = 1) {
+    const badgeHTML = count > 1 ? `
+  <circle cx="95" cy="5" r="15" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+  <text x="95" y="10" font-family="sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">${count}</text>
+  ` : '';
+    return `<svg style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5)); overflow:visible;" viewBox="-5 -5 115 65" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
   <path d="M 8,15 Q 8,8 15,8 L 80,8 Q 95,8 96,25 L 96,48 Q 96,52 92,52 L 8,52 Q 4,52 4,48 Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
   <rect x="12" y="14" width="18" height="18" rx="2" fill="#ffffff" />
   <rect x="34" y="14" width="22" height="18" rx="2" fill="#ffffff" />
@@ -60,6 +64,7 @@ function getBusIconHTML(color) {
   <circle cx="75" cy="52" r="3" fill="#ccc"/>
   <rect x="94" y="42" width="4" height="6" rx="1" fill="#facc15" />
   <rect x="2" y="36" width="3" height="8" rx="1" fill="#ef4444" />
+  ${badgeHTML}
 </svg>`;
 }
 
@@ -144,46 +149,58 @@ function timeAgo(timestamp) {
 }
 
 function updateMapMarkers(activeUsers) {
-    const existingIds = new Set(activeUsers.map(u => u.id));
+    // 1. Agrupar viajeros por proximidad (< 150m) si son de la misma micro
+    let clusters = [];
+    activeUsers.forEach(u => {
+        if (!observerMode && u.id === myUserId) return; // Ignorar mi posición para el listado remote
+        if (activeFilter !== 'all' && u.micro !== activeFilter) return;
 
-    // Eliminar markers de usuarios que desaparecieron
+        let added = false;
+        for (let c of clusters) {
+            if (c.micro === u.micro && getDistanceMeters(c.lat, c.lng, u.lat, u.lng) < 150) {
+                c.count++;
+                if (u.lastUpdate > c.lastUpdate) c.lastUpdate = u.lastUpdate; // Timestamp más reciente
+                added = true;
+                break;
+            }
+        }
+        if (!added) {
+            clusters.push({ id: u.id, micro: u.micro, lat: u.lat, lng: u.lng, count: 1, lastUpdate: u.lastUpdate || 0 });
+        }
+    });
+
+    const activeClusterIds = new Set(clusters.map(c => c.id));
+
+    // Eliminar clusters obsoletos
     Object.keys(remoteMarkers).forEach(id => {
-        if (!existingIds.has(id)) {
+        if (!activeClusterIds.has(id)) {
             leafletMap.removeLayer(remoteMarkers[id]);
             delete remoteMarkers[id];
         }
     });
 
-    // Actualizar / crear markers
-    activeUsers.forEach(u => {
-        if (!observerMode && u.id === myUserId) return; // No duplicar mi propio marcador
-        if (activeFilter !== 'all' && u.micro !== activeFilter) {
-            if (remoteMarkers[u.id]) remoteMarkers[u.id].setOpacity(0);
-            return;
-        }
-
-        const color = getColor(u.micro);
-        const isMe = (u.id === myUserId);
-        const sizeHeight = isMe ? 32 : 24;
+    // Crear o actualizar clusters
+    clusters.forEach(c => {
+        const color = getColor(c.micro);
+        const sizeHeight = c.count > 1 ? 28 : 24; // Ligeramente más grande si es cluster
         const sizeWidth = sizeHeight * 1.6;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px; ${isMe ? 'transform:scale(1.15);' : ''}">${getBusIconHTML(color)}</div>`,
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color, c.count)}</div>`,
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
 
-        const popupText = isMe
-            ? `📍 Tú · 🚌 ${u.micro}`
-            : `🚌 Micro ${u.micro} · ${timeAgo(u.lastUpdate)}`;
+        let popupText = `🚌 Micro ${c.micro} · ${timeAgo(c.lastUpdate)}`;
+        if (c.count > 1) popupText = `🚌 Micro ${c.micro} · ${c.count} personas enviando señal juntas.`;
 
-        if (remoteMarkers[u.id]) {
-            remoteMarkers[u.id].setLatLng([u.lat, u.lng]);
-            remoteMarkers[u.id].setOpacity(1);
-            remoteMarkers[u.id].setPopupContent(popupText);
-            remoteMarkers[u.id].setIcon(icon);
+        if (remoteMarkers[c.id]) {
+            remoteMarkers[c.id].setLatLng([c.lat, c.lng]);
+            remoteMarkers[c.id].setOpacity(1);
+            remoteMarkers[c.id].setPopupContent(popupText);
+            remoteMarkers[c.id].setIcon(icon);
         } else {
-            remoteMarkers[u.id] = L.marker([u.lat, u.lng], { icon })
+            remoteMarkers[c.id] = L.marker([c.lat, c.lng], { icon })
                 .addTo(leafletMap)
                 .bindPopup(popupText);
         }
@@ -468,6 +485,20 @@ function startTracking(micro) {
     let isFirstPosition = true;
     window.latestPos = null;
 
+    // Llamada rápida forzada previa al watch (hack para despertar la API más velozmente)
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            if (isFirstPosition) {
+                showTrackingUI(micro);
+                isFirstPosition = false;
+                publishMyPosition(pos.coords.latitude, pos.coords.longitude, micro);
+            }
+            window.latestPos = pos;
+        },
+        (err) => console.log('getCurrentPos initial info:', err.message),
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: Infinity }
+    );
+
     watchId = navigator.geolocation.watchPosition(
         (pos) => {
             if (isFirstPosition) {
@@ -704,8 +735,29 @@ updateClock();
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         const swPath = window.location.pathname.includes('/mics_te_ayuda/') ? '/mics_te_ayuda/sw.js' : 'sw.js';
-        navigator.serviceWorker.register(swPath)
-            .then(reg => console.log('[PWA] Service Worker registrado', reg))
-            .catch(err => console.error('[PWA] Error registrando SW', err));
+        navigator.serviceWorker.register(swPath).then(reg => {
+            console.log('[PWA] Service Worker registrado', reg);
+            
+            // Detectar si el explorador descarga un service worker nuevo
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showToast('🔄 Nueva actualización (v6) detectada. Reiniciando App...');
+                        setTimeout(() => window.location.reload(true), 2500);
+                    }
+                });
+            });
+        }).catch(err => console.error('[PWA] Error registrando SW', err));
+
+        // Refrescar ante cualquier reclamo de controller nuevo
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                window.location.reload();
+                refreshing = true;
+            }
+        });
     });
 }
+
