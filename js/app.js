@@ -477,10 +477,11 @@ let watchPublishInterval = null;
 // ---- Iniciar tracking GPS ----
 function startTracking(micro) {
     if (!navigator.geolocation) {
-        showToast('⚠️ Tu navegador no soporta geolocalización, usando modo demo');
-        startDemoTracking(micro);
+        showToast('⚠️ Tu navegador no soporta geolocalización.');
         return;
     }
+
+    showToast('📡 Pidiendo señal GPS...');
 
     let isFirstPosition = true;
     window.latestPos = null;
@@ -495,7 +496,7 @@ function startTracking(micro) {
             }
             window.latestPos = pos;
         },
-        (err) => console.log('getCurrentPos initial info:', err.message),
+        (err) => console.log('getCurrentPos info:', err.message),
         { enableHighAccuracy: false, timeout: 5000, maximumAge: Infinity }
     );
 
@@ -509,13 +510,14 @@ function startTracking(micro) {
             window.latestPos = pos;
         },
         (err) => {
+            console.error('Error watchPosition:', err.message);
             if (isFirstPosition) {
-                showToast('ℹ️ GPS no disponible (' + err.message + ') — usando modo demo');
-                startDemoTracking(micro);
+                showToast('❌ GPS sin respuesta: ¿Tienes la ubicación activada y con permisos otorgados a tu navegador web?');
+                stopTracking(); // Limpiar UI falso
                 isFirstPosition = false;
             }
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 }
     );
 
     // Publicar la posición en Firebase cada 15 segundos en lugar de 3 minutos
