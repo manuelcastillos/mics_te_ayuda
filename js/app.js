@@ -305,6 +305,41 @@ function initMapIfNeeded() {
     if (badge) badge.style.display = observerMode ? 'flex' : 'none';
 }
 
+// ---- Límite máximo de viajeros en Firebase ----
+const MAX_VIAJEROS = 50;
+
+// ---- Señal de proximidad ----
+const PROXIMITY_RADIUS_M = 100;  // metros
+let proximityAlertActive = false; // evitar spam de alertas
+
+function checkProximityAlert(activeUsersList) {
+    // Solo si estoy compartiendo mi posición y tengo coordenadas
+    if (!window.latestPos || observerMode) {
+        proximityAlertActive = false;
+        return;
+    }
+    const myLat = window.latestPos.coords.latitude;
+    const myLng = window.latestPos.coords.longitude;
+
+    const nearby = activeUsersList.filter(u => {
+        if (u.id === myUserId) return false;
+        if (activeFilter !== 'all' && u.micro !== activeFilter) return false;
+        return getDistanceMeters(myLat, myLng, u.lat, u.lng) <= PROXIMITY_RADIUS_M;
+    });
+
+    if (nearby.length > 0 && !proximityAlertActive) {
+        proximityAlertActive = true;
+        const micros = [...new Set(nearby.map(u => u.micro))].join(', ');
+        showToast(`🔔 ¡Compañero a menos de 100m! Micro: ${micros}`);
+        // Vibración si el dispositivo lo soporta
+        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+        // Auto-reset después de 30s para poder alertar de nuevo
+        setTimeout(() => { proximityAlertActive = false; }, 30000);
+    } else if (nearby.length === 0) {
+        proximityAlertActive = false;
+    }
+}
+
 function initRealTimeUpdates() {
     db.ref("viajeros").on("value", (snapshot) => {
         let counts = {};
@@ -340,6 +375,9 @@ function initRealTimeUpdates() {
             updateMapMarkers(activeUsersList);
             updateHeatmap(activeUsersList);
         }
+
+        // Verificar si alguien está cerca de mi posición actual
+        checkProximityAlert(activeUsersList);
     });
 }
 
@@ -634,9 +672,13 @@ function publishMyPosition(lat, lng, micro) {
 
     // Enviar a Firebase si está activo
     if (!DEMO_MODE && db) {
+        // Primero escribir mi posición
         db.ref("viajeros/" + myUserId).set({
             lat, lng, micro,
             lastUpdate: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+            // Luego verificar si se supera el límite de MAX_VIAJEROS
+            enforceViajerosCap();
         }).catch(err => console.error("Error subiendo posición:", err));
     }
 
@@ -656,6 +698,29 @@ function publishMyPosition(lat, lng, micro) {
             }, 2000);
         }
     }
+}
+
+// ---- Purgar viajeros más antiguos si se supera el límite ----
+function enforceViajerosCap() {
+    db.ref("viajeros").once("value", (snapshot) => {
+        const all = [];
+        snapshot.forEach((child) => {
+            all.push({ key: child.key, lastUpdate: child.val().lastUpdate || 0 });
+        });
+
+        if (all.length > MAX_VIAJEROS) {
+            // Ordenar por lastUpdate ascendente (más antiguos primero)
+            all.sort((a, b) => a.lastUpdate - b.lastUpdate);
+            const toRemove = all.slice(0, all.length - MAX_VIAJEROS);
+            toRemove.forEach(entry => {
+                if (entry.key !== myUserId) { // No eliminar el propio registro
+                    db.ref("viajeros/" + entry.key).remove()
+                      .catch(err => console.warn("No se pudo purgar:", err));
+                }
+            });
+            console.log(`[MICS] Límite enforced: ${toRemove.length} entrada(s) antigua(s) eliminada(s).`);
+        }
+    });
 }
 
 // ---- Detener tracking ----
