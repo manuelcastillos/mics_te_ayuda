@@ -4,7 +4,7 @@
 // ============================================================
 
 // ---- Estado global ----
-let myUserId     = 'user_' + Math.random().toString(36).substr(2, 9);
+let myUserId     = null; // Se asignará vía Firebase Auth
 let selectedMicro = null;
 let watchId       = null;
 let startTime     = null;
@@ -17,23 +17,54 @@ let lastSyncTime     = null;
 let heatmapLayer     = null;
 let heatmapActive    = false;
 let observerMode     = false; // Modo solo-ver: conecta a Firebase pero no publica posición
+let listenerActive   = false; // Guard: evitar listeners duplicados en Firebase
+let pendingListenerInit = false; // Si auth terminó antes que el mapa, activar listener al abrir mapa
 
 // ---- Inicialización de Firebase ----
 let db = null;
 let serverTimeOffset = 0;
 try {
-    if (!DEMO_MODE && typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
+    if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
         firebase.initializeApp(FIREBASE_CONFIG);
         db = firebase.database();
-        console.log('[MICS] Firebase Realtime Database conectado ✅');
         
-        // Sincronizar el tiempo local con el servidor de Firebase
-        db.ref('.info/serverTimeOffset').on('value', function(snapshot) {
-            serverTimeOffset = snapshot.val() || 0;
+        // Monitorear estado de conexión en tiempo real
+        db.ref('.info/connected').on('value', (snap) => {
+            const connected = snap.val() === true;
+            setConnStatus(connected);
         });
+
+        // Autenticación Anónima
+        firebase.auth().signInAnonymously()
+            .then((result) => {
+                myUserId = result.user.uid;
+                console.log('[MICS] Autenticado anónimamente ✅ ID:', myUserId);
+                
+                db.ref('.info/serverTimeOffset').on('value', function(snapshot) {
+                    serverTimeOffset = snapshot.val() || 0;
+                });
+
+                // ---- FIX: iniciar listener si el mapa ya existe,
+                // o marcar como pendiente para cuando el mapa se abra ----
+                if (leafletMap) {
+                    initRealTimeUpdates();
+                } else {
+                    pendingListenerInit = true; // se iniciará en initMapIfNeeded
+                }
+            })
+            .catch((error) => {
+                console.error('[MICS] Error en Auth:', error.code, error.message);
+                showToast('❌ Error de conexión con el servidor');
+                setConnStatus(false);
+            });
     }
 } catch(e) {
     console.error('[MICS] Error al inicializar Firebase:', e);
+}
+
+// Fallback: si Firebase no carga, generar un ID local
+if (!db) {
+    myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 }
 
 // Colores por micro
@@ -121,6 +152,32 @@ function showScreen(id) {
     }
 }
 window.showScreen = showScreen;
+
+function startApp() {
+    showScreen('main-screen');
+    startBackgroundLocation();
+}
+window.startApp = startApp;
+
+// Track background location implicitly so proximity works without explicit sharing
+let backgroundWatchId = null;
+function startBackgroundLocation() {
+    if (!navigator.geolocation) return;
+    if (backgroundWatchId !== null) return;
+    
+    // Iniciar el listener de ubicación
+    backgroundWatchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            window.latestPos = pos;
+            checkProximityAlert(window.latestActiveUsersList || []);
+        },
+        (err) => console.log('[MICS] Background location err:', err.message),
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 }
+    );
+}
+
+// Global list for active users so checkProximityAlert can be triggered reliably
+window.latestActiveUsersList = [];
 
 // ---- Interpolación de posición en ruta ----
 function interpolateRoute(route, progress) {
@@ -293,9 +350,14 @@ function initMapIfNeeded() {
         gradient: {0.4: 'blue', 0.65: 'lime', 1: 'yellow'}
     }); // No añadir al mapa aún
 
-    // Iniciar escucha de datos reales o simulación
-    if (!DEMO_MODE && db) {
-        initRealTimeUpdates();
+    // Iniciar escucha de datos reales
+    if (db) {
+        // Si auth ya completó (myUserId disponible), iniciar listener; si pendiente, también
+        if (myUserId || pendingListenerInit) {
+            initRealTimeUpdates();
+        }
+        // Si auth aún no terminó, el callback de auth llamará initRealTimeUpdates()
+        // porque leafletMap ya estará definido
     } else {
         setInterval(updateDemoSimulation, 2000);
     }
@@ -308,14 +370,39 @@ function initMapIfNeeded() {
 // ---- Límite máximo de viajeros en Firebase ----
 const MAX_VIAJEROS = 50;
 
+// ---- Conexión: actualizar el punto en la UI ----
+function setConnStatus(online) {
+    const dot = document.getElementById('conn-status');
+    if (!dot) return;
+    dot.className = 'conn-dot ' + (online ? 'conn-online' : 'conn-offline');
+    dot.title = online ? 'Conectado ✅' : 'Sin conexión ❌';
+}
+
+// ---- ETA a FACIMAR basado en posición actual ----
+function updateETA(lat, lng) {
+    const distKm = getDistanceMeters(lat, lng, FACIMAR_LAT, FACIMAR_LNG) / 1000;
+    // Velocidad promedio de micro en Viña: ~25 km/h en ruta urbana
+    const etaMin = Math.ceil((distKm / 25) * 60);
+    const badge = document.getElementById('eta-badge');
+    const val   = document.getElementById('eta-value');
+    if (!badge || !val) return;
+    if (distKm < 0.05) { // Ya llegó
+        badge.style.display = 'none';
+        return;
+    }
+    badge.style.display = 'flex';
+    val.textContent = etaMin <= 1 ? '~1 min' : `~${etaMin} min`;
+}
+
 // ---- Señal de proximidad ----
 const PROXIMITY_RADIUS_M = 100;  // metros
 let proximityAlertActive = false; // evitar spam de alertas
+let proximityAlertTimeout = null;
 
 function checkProximityAlert(activeUsersList) {
-    // Solo si estoy compartiendo mi posición y tengo coordenadas
-    if (!window.latestPos || observerMode) {
-        proximityAlertActive = false;
+    // Asegurar que tenemos coordenadas
+    if (!window.latestPos) {
+        clearProximityUI();
         return;
     }
     const myLat = window.latestPos.coords.latitude;
@@ -323,61 +410,123 @@ function checkProximityAlert(activeUsersList) {
 
     const nearby = activeUsersList.filter(u => {
         if (u.id === myUserId) return false;
-        if (activeFilter !== 'all' && u.micro !== activeFilter) return false;
         return getDistanceMeters(myLat, myLng, u.lat, u.lng) <= PROXIMITY_RADIUS_M;
     });
 
-    if (nearby.length > 0 && !proximityAlertActive) {
-        proximityAlertActive = true;
+    if (nearby.length > 0) {
         const micros = [...new Set(nearby.map(u => u.micro))].join(', ');
-        showToast(`🔔 ¡Compañero a menos de 100m! Micro: ${micros}`);
-        // Vibración si el dispositivo lo soporta
-        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
-        // Auto-reset después de 30s para poder alertar de nuevo
-        setTimeout(() => { proximityAlertActive = false; }, 30000);
-    } else if (nearby.length === 0) {
-        proximityAlertActive = false;
+        const msg = `¡${nearby.length > 1 ? nearby.length + ' compañeros' : 'Compañero'} a menos de 100m! Micro: ${micros}`;
+
+        // Banner sobre el mapa
+        const mapBanner = document.getElementById('map-proximity-banner');
+        const mapMsg    = document.getElementById('map-proximity-msg');
+        if (mapBanner) { mapBanner.classList.remove('hidden'); if (mapMsg) mapMsg.textContent = msg; }
+
+        // Banner en pantalla principal
+        const alertEl = document.getElementById('proximity-alert');
+        const msgEl   = document.getElementById('proximity-msg');
+        if (alertEl) { alertEl.classList.remove('hidden'); if (msgEl) msgEl.textContent = msg; }
+
+        if (!proximityAlertActive) {
+            proximityAlertActive = true;
+            if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+            // Auto-reset visibilidad del banner después de 30s
+            clearTimeout(proximityAlertTimeout);
+            proximityAlertTimeout = setTimeout(() => {
+                proximityAlertActive = false;
+                clearProximityUI();
+            }, 30000);
+        }
+    } else {
+        clearProximityUI();
     }
 }
 
+function clearProximityUI() {
+    proximityAlertActive = false;
+    const alertEl   = document.getElementById('proximity-alert');
+    const mapBanner = document.getElementById('map-proximity-banner');
+    if (alertEl)   alertEl.classList.add('hidden');
+    if (mapBanner) mapBanner.classList.add('hidden');
+}
+
+function closeProximityAlert() {
+    clearTimeout(proximityAlertTimeout);
+    clearProximityUI();
+    // No alertar de nuevo por 30s
+    proximityAlertTimeout = setTimeout(() => { proximityAlertActive = false; }, 30000);
+    proximityAlertActive = true;
+}
+window.closeProximityAlert = closeProximityAlert;
+
 function initRealTimeUpdates() {
+    if (!db || !myUserId) {
+        // Auth aún no completó: marcar como pendiente
+        pendingListenerInit = true;
+        console.warn('[MICS] initRealTimeUpdates: auth no lista, diferido.');
+        return;
+    }
+    // Guard: solo registrar el listener UNA VEZ
+    if (listenerActive) {
+        console.log('[MICS] Listener ya activo, no se duplica.');
+        return;
+    }
+    listenerActive = true;
+    pendingListenerInit = false;
+    console.log('[MICS] 🔴 Iniciando listener de /viajeros...');
+    
     db.ref("viajeros").on("value", (snapshot) => {
         let counts = {};
-        const now = Date.now() + serverTimeOffset; // Tiempo actual sincronizado con Firebase
+        const now = Date.now() + serverTimeOffset;
         const activeUsersList = [];
 
         snapshot.forEach((child) => {
             const data = child.val();
+            if (!data || data.lat == null || data.lng == null) return;
             const lastUpdate = data.lastUpdate || 0;
-
+            // Incluir viajeros activos en los últimos 15 minutos
             if (now - lastUpdate < 900000) {
                 activeUsersList.push({ id: child.key, ...data });
                 counts[data.micro] = (counts[data.micro] || 0) + 1;
             }
         });
 
-        document.getElementById('travelers-count').textContent = activeUsersList.length;
+        console.log(`[MICS] Snapshot recibido: ${activeUsersList.length} viajero(s) activo(s)`);
+
+        const tcount = document.getElementById('travelers-count');
+        if (tcount) tcount.textContent = activeUsersList.length;
         
         // Actualizar breakdown dinámicamente
         const container = document.querySelector('.travelers-breakdown');
-        container.innerHTML = '';
-        Object.keys(counts).sort().forEach(m => {
-            const color = getColor(m);
-            const tag = document.createElement('span');
-            tag.className = 'tag';
-            tag.style.background = `${color}22`;
-            tag.style.color = color;
-            tag.textContent = `${m}: ${counts[m]}`;
-            container.appendChild(tag);
-        });
+        if (container) {
+            container.innerHTML = '';
+            if (Object.keys(counts).length === 0) {
+                container.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Nadie en camino ahora</span>';
+            } else {
+                Object.keys(counts).sort().forEach(m => {
+                    const color = getColor(m);
+                    const tag = document.createElement('span');
+                    tag.className = 'tag';
+                    tag.style.background = `${color}22`;
+                    tag.style.color = color;
+                    tag.style.border = `1px solid ${color}44`;
+                    tag.textContent = `${m}: ${counts[m]}`;
+                    container.appendChild(tag);
+                });
+            }
+        }
 
         if (leafletMap) {
             updateMapMarkers(activeUsersList);
             updateHeatmap(activeUsersList);
         }
 
-        // Verificar si alguien está cerca de mi posición actual
+        window.latestActiveUsersList = activeUsersList;
         checkProximityAlert(activeUsersList);
+    }, (error) => {
+        console.error('[MICS] Error leyendo /viajeros:', error.code, error.message);
+        showToast('⚠️ Sin permiso para leer el mapa. Revisa las reglas de Firebase.');
+        listenerActive = false; // Permitir reintentar
     });
 }
 
@@ -518,6 +667,10 @@ function startTracking(micro) {
         showToast('⚠️ Tu navegador no soporta geolocalización.');
         return;
     }
+    if (!myUserId) {
+        showToast('⚠️ Conectando al servidor... intenta en unos segundos.');
+        return;
+    }
 
     showToast('📡 Pidiendo señal GPS...');
 
@@ -652,34 +805,42 @@ window.startObserving = startObserving;
 // ---- Publicar posición (Firebase o Local) ----
 function publishMyPosition(lat, lng, micro) {
     lastSyncTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('tracking-coords').textContent = `📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    document.getElementById('status-subtitle').textContent = `Última actualización: ${lastSyncTime}`;
+    const coordEl = document.getElementById('tracking-coords');
+    const subEl   = document.getElementById('status-subtitle');
+    if (coordEl) coordEl.textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    if (subEl)   subEl.textContent   = `Última sincronización: ${lastSyncTime}`;
+
+    // Actualizar ETA
+    updateETA(lat, lng);
 
     // Dibujar mi propio marcador
     if (leafletMap) {
         const color = getColor(micro);
-        const sizeHeight = 32;
+        const sizeHeight = 36;
         const sizeWidth = sizeHeight * 1.6;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color)}</div>`,
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color)}</div>`,
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
         if (myMarker) leafletMap.removeLayer(myMarker);
-        myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap).bindPopup('📍 Tú');
+        myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap)
+            .bindPopup(`<strong>📍 Tú</strong><br>Micro ${micro}<br><small>${lastSyncTime}</small>`);
     }
 
     // Enviar a Firebase si está activo
-    if (!DEMO_MODE && db) {
-        // Primero escribir mi posición
+    if (db && myUserId) {
         db.ref("viajeros/" + myUserId).set({
             lat, lng, micro,
             lastUpdate: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
-            // Luego verificar si se supera el límite de MAX_VIAJEROS
+            console.log('[MICS] Posición publicada en Firebase ✅');
             enforceViajerosCap();
-        }).catch(err => console.error("Error subiendo posición:", err));
+        }).catch(err => {
+            console.error('[MICS] Error subiendo posición:', err);
+            showToast('⚠️ Error sincronizando posición');
+        });
     }
 
     // ---- Geovalla: detener automáticamente al llegar a FACIMAR ----
@@ -688,7 +849,7 @@ function publishMyPosition(lat, lng, micro) {
         if (dist <= ARRIVAL_RADIUS_M) {
             arrivedAtFacimar = true;
             showToast('🎓 ¡Llegaste a FACIMAR! Seguimiento detenido automáticamente.');
-            if (!DEMO_MODE && db) {
+            if (db && myUserId) {
                 db.ref("viajeros/" + myUserId).remove();
             }
             setTimeout(() => {
@@ -740,6 +901,18 @@ function stopTracking() {
     clearInterval(trackingTimer);
     if (myMarker && leafletMap) { leafletMap.removeLayer(myMarker); myMarker = null; }
 
+    // Eliminar mi entrada de Firebase inmediatamente
+    if (db && myUserId) {
+        db.ref("viajeros/" + myUserId).remove()
+          .catch(err => console.warn('[MICS] No se pudo eliminar posición:', err));
+    }
+
+    window.latestPos = null;
+    clearProximityUI();
+
+    const etaBadge = document.getElementById('eta-badge');
+    if (etaBadge) etaBadge.style.display = 'none';
+
     selectedMicro = null;
     document.getElementById('selector-section').classList.remove('hidden');
     document.getElementById('tracking-section').classList.add('hidden');
@@ -754,6 +927,22 @@ function stopTracking() {
     showToast('👋 ¡Gracias! Tu posición fue retirada del mapa.');
 }
 window.stopTracking = stopTracking;
+
+// ---- Centrar mapa en mi posición ----
+function centerOnMe() {
+    if (!leafletMap) return;
+    if (window.latestPos) {
+        const { latitude, longitude } = window.latestPos.coords;
+        leafletMap.flyTo([latitude, longitude], 16, { animate: true, duration: 1 });
+    } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            leafletMap.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { animate: true, duration: 1 });
+        }, () => showToast('⚠️ No se pudo obtener tu posición'));
+    } else {
+        showToast('⚠️ GPS no disponible');
+    }
+}
+window.centerOnMe = centerOnMe;
 
 function confirmStopTracking() {
     if (confirm('¿Deseas dejar de compartir tu ubicación?')) {

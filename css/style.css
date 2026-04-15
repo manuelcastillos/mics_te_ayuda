@@ -15,9 +15,12 @@
     --accent-otro: #a78bfa;
     --bg: #0d1b2e;
     --bg-card: #132342;
+    --bg-card2: #0f1e38;
     --text: #e8f0fe;
     --text-muted: #8baabe;
     --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
     --shadow: 0 8px 30px rgba(0,0,0,0.4);
     --radius: 18px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -108,6 +111,19 @@ html, body {
     font-weight: 300;
 }
 
+.splash-version {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.2rem 0.8rem;
+    background: rgba(0,180,216,0.12);
+    border: 1px solid rgba(0,180,216,0.25);
+    border-radius: 50px;
+    font-size: 0.75rem;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
 .privacy-notice {
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.15);
@@ -194,6 +210,38 @@ html, body {
     border: 1px solid rgba(0, 180, 216, 0.2);
     border-radius: 50px;
     letter-spacing: 0.5px;
+}
+
+/* Agrupación de reloj + punto de conexión */
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Punto de estado de conexión */
+.conn-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.conn-online {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: conn-blink 2.5s ease-in-out infinite;
+}
+
+.conn-offline {
+    background: var(--danger);
+    box-shadow: 0 0 6px var(--danger);
+}
+
+@keyframes conn-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
 }
 
 .btn-map-link, .btn-back {
@@ -433,6 +481,70 @@ html, body {
     padding-top: 0.2rem;
 }
 
+/* ---- ETA BADGE ---- */
+.eta-badge {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    background: rgba(0,180,216,0.12);
+    border: 1px solid rgba(0,180,216,0.25);
+    border-radius: 12px;
+    padding: 0.5rem 0.9rem;
+    min-width: 60px;
+    flex-shrink: 0;
+}
+
+.eta-label {
+    font-size: 0.65rem;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.eta-value {
+    font-size: 1rem;
+    font-weight: 900;
+    color: white;
+}
+
+/* ---- ALERTA DE PROXIMIDAD (pantalla principal) ---- */
+.proximity-alert {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.08));
+    border: 1px solid rgba(245,158,11,0.35);
+    border-radius: 14px;
+    padding: 0.9rem 1.1rem;
+    animation: slideDown 0.3s ease-out;
+    position: relative;
+}
+
+.proximity-icon { font-size: 1.3rem; flex-shrink: 0; }
+
+.proximity-alert span:nth-child(2) {
+    flex: 1;
+    font-size: 0.85rem;
+    color: var(--warning);
+    font-weight: 500;
+}
+
+.proximity-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.2rem;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+.proximity-close:hover { color: var(--danger); }
+
 /* ---- CONTADOR DE VIAJEROS ---- */
 .active-travelers {
     background: var(--bg-card);
@@ -538,9 +650,59 @@ html, body {
     flex-shrink: 0;
 }
 
-.dot-601 { background: var(--accent-601); box-shadow: 0 0 6px var(--accent-601); }
-.dot-302 { background: var(--accent-302); box-shadow: 0 0 6px var(--accent-302); }
-.dot-facimar { background: white; box-shadow: 0 0 6px white; }
+.dot-601     { background: var(--accent-601); box-shadow: 0 0 6px var(--accent-601); }
+.dot-302     { background: var(--accent-302); box-shadow: 0 0 6px var(--accent-302); }
+.dot-facimar { background: #00b4d8; box-shadow: 0 0 6px #00b4d8; }
+
+/* ---- Boton flotante "Centrar en mí" ---- */
+.btn-center-me {
+    position: absolute;
+    bottom: 7rem;
+    right: 1rem;
+    z-index: 1001;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: rgba(13, 27, 46, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0,180,216,0.4);
+    color: white;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    transition: var(--transition);
+}
+
+.btn-center-me:hover {
+    background: rgba(0,180,216,0.2);
+    transform: scale(1.08);
+    border-color: var(--accent);
+}
+
+/* ---- Banner de proximidad sobre el mapa ---- */
+.map-proximity-banner {
+    position: absolute;
+    top: 5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1002;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: linear-gradient(135deg, rgba(245,158,11,0.92), rgba(234,130,0,0.9));
+    color: #1a0a00;
+    padding: 0.7rem 1.4rem;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(245,158,11,0.4);
+    animation: slideDown 0.3s ease-out;
+    white-space: nowrap;
+    max-width: 90vw;
+}
 
 /* ---- FILTER BUTTONS ---- */
 .filter-header-right {
@@ -628,18 +790,21 @@ html, body {
     bottom: 2rem;
     left: 50%;
     transform: translateX(-50%) translateY(100px);
-    background: #1e3a5f;
+    background: rgba(19, 35, 66, 0.97);
+    backdrop-filter: blur(12px);
     color: white;
-    padding: 0.8rem 1.5rem;
+    padding: 0.9rem 1.6rem;
     border-radius: 50px;
     font-size: 0.9rem;
     font-weight: 600;
-    z-index: 1000;
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid rgba(255,255,255,0.1);
+    z-index: 9999;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s;
+    border: 1px solid rgba(0,180,216,0.25);
     max-width: 90vw;
     text-align: center;
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.4;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
 }
 
 .toast.show {

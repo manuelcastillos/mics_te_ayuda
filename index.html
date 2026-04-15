@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>MICS Te Ayuda</title>
     <meta name="description" content="Seguimiento en tiempo real de la micro 601 y 302 hacia FACIMAR UV">
-    <meta name="theme-color" content="#1a2f5e">
+    <meta name="theme-color" content="#0d1b2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
     <link rel="manifest" href="manifest.json">
 
     <!-- Leaflet.js (mapa gratuito, sin API key) -->
@@ -25,6 +28,7 @@
             <div class="logo-area">
                 <div class="logo-icon">🚌</div>
                 <h1 class="app-title">MICS<br><span>Te Ayuda</span></h1>
+                <div class="splash-version">v7 · Beta pública</div>
                 <p class="app-tagline">Seguimiento en tiempo real hacia FACIMAR · UV Viña del Mar</p>
             </div>
             <div class="privacy-notice">
@@ -32,7 +36,7 @@
                 <p>Uso <strong>100% anónimo</strong>. Solo compartimos tu posición mientras estás en la micro. Sin nombre, sin cuenta.</p>
             </div>
             
-            <button class="btn-primary" onclick="showScreen('main-screen')">
+            <button class="btn-primary" onclick="startApp()">
                 Empezar 🚀
             </button>
             <div class="dev-link">
@@ -45,7 +49,10 @@
     <div id="main-screen" class="screen">
         <header class="app-header">
             <div class="header-logo">🚌 MICS Te Ayuda</div>
-            <div id="app-clock-main" class="header-clock">00:00:00</div>
+            <div class="header-center">
+                <div id="app-clock-main" class="header-clock">00:00:00</div>
+                <div id="conn-status" class="conn-dot conn-offline" title="Estado de conexión"></div>
+            </div>
             <button class="btn-map-link" onclick="showScreen('map-screen')">
                 Ver Mapa 🗺️
             </button>
@@ -104,6 +111,16 @@
                         <span id="tracking-coords">Solicitando GPS...</span>
                         <span id="tracking-time">Iniciado hace 0 min</span>
                     </div>
+                    <div class="eta-badge" id="eta-badge" style="display:none;">
+                        <span class="eta-label">ETA</span>
+                        <span class="eta-value" id="eta-value">–</span>
+                    </div>
+                </div>
+                <!-- Alerta de proximidad inline -->
+                <div class="proximity-alert hidden" id="proximity-alert">
+                    <span class="proximity-icon">🔔</span>
+                    <span id="proximity-msg">¡Compañero cerca!</span>
+                    <button class="proximity-close" onclick="closeProximityAlert()">✕</button>
                 </div>
                 <button class="btn-stop" onclick="stopTracking()">
                     ⏹ Llegué — Detener seguimiento
@@ -152,10 +169,17 @@
                 <button class="btn-heatmap-toggle" onclick="toggleHeatmap()" id="btn-heatmap" title="Modo Densidad (Heatmap)">🔥</button>
             </div>
         </header>
+        <!-- Alerta flotante de proximidad sobre el mapa -->
+        <div class="map-proximity-banner hidden" id="map-proximity-banner">
+            <span>🔔</span>
+            <span id="map-proximity-msg">¡Compañero a menos de 100m!</span>
+        </div>
         <div id="map"></div>
+        <button class="btn-center-me" id="btn-center-me" onclick="centerOnMe()" title="Centrar en mi posición">📍</button>
         <div class="map-legend">
             <div class="legend-item"><span class="dot dot-601"></span>601</div>
             <div class="legend-item"><span class="dot dot-302"></span>302</div>
+            <div class="legend-item"><span class="dot dot-facimar"></span>FACIMAR</div>
         </div>
     </div>
 
@@ -178,6 +202,7 @@
 
     <!-- Scripts de Firebase (v10+ Compat para esta configuración) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
     <!-- Scripts de la App -->
