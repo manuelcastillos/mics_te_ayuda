@@ -8,6 +8,16 @@
 const FACIMAR_LAT = -32.957119;
 const FACIMAR_LNG = -71.549831;
 
+// Otras sedes UV
+const CIAE_LAT = -33.044144;
+const CIAE_LNG = -71.616539;
+
+const CIENCIAS_LAT = -33.026650;
+const CIENCIAS_LNG = -71.638631;
+
+const SALUD_LAT = -32.970633;
+const SALUD_LNG = -71.536397;
+
 // Para que funcione, pega aquí el objeto de configuración que te da la consola de Firebase
 // Estos valores se inyectan automáticamente desde los Secrets de GitHub durante el despliegue
 const FIREBASE_CONFIG = {

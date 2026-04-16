@@ -317,49 +317,62 @@ function initMapIfNeeded() {
         maxZoom: 19
     }).addTo(leafletMap);
 
-    // ---- Marcador FACIMAR destacado ----
-    // Círculo de zona de llegada (radio 150m)
-    L.circle([FACIMAR_LAT, FACIMAR_LNG], {
-        radius: ARRIVAL_RADIUS_M,
-        color: '#00b4d8',
-        fillColor: '#00b4d8',
-        fillOpacity: 0.08,
-        weight: 2,
-        dashArray: '6 4'
-    }).addTo(leafletMap);
+    // ---- Marcadores de Sedes UV ----
+    const sedes = [
+        { lat: FACIMAR_LAT, lng: FACIMAR_LNG, label: "FACIMAR UV", icon: "🎓", color: "#00b4d8" },
+        { lat: CIAE_LAT, lng: CIAE_LNG, label: "CIAE UV", icon: "🏢", color: "#facc15" },
+        { lat: CIENCIAS_LAT, lng: CIENCIAS_LNG, label: "CIENCIAS UV", icon: "🔬", color: "#10b981" },
+        { lat: SALUD_LAT, lng: SALUD_LNG, label: "SALUD UV", icon: "🩺", color: "#ef4444" }
+    ];
 
-    // Ícono grande con animación
-    const facimar_icon = L.divIcon({
-        className: '',
-        html: `
-            <div style="position:relative;width:48px;height:48px;">
-                <div style="
-                    position:absolute;inset:0;
-                    background:rgba(0,180,216,0.2);
-                    border:2px solid #00b4d8;
-                    border-radius:50%;
-                    animation:facimar-pulse 2s ease-out infinite;
-                "></div>
-                <div style="
-                    position:absolute;inset:8px;
-                    background:#0d1b2e;
-                    border:2px solid #00b4d8;
-                    border-radius:50%;
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:18px;
-                ">🎓</div>
-            </div>`,
-        iconSize: [48, 48],
-        iconAnchor: [24, 24]
+    sedes.forEach((sede, index) => {
+        // Círculo de zona de llegada
+        L.circle([sede.lat, sede.lng], {
+            radius: ARRIVAL_RADIUS_M,
+            color: sede.color,
+            fillColor: sede.color,
+            fillOpacity: 0.08,
+            weight: 2,
+            dashArray: '6 4'
+        }).addTo(leafletMap);
+
+        // Ícono grande con animación
+        const custom_icon = L.divIcon({
+            className: '',
+            html: `
+                <div style="position:relative;width:48px;height:48px;">
+                    <div style="
+                        position:absolute;inset:0;
+                        background:${sede.color}33;
+                        border:2px solid ${sede.color};
+                        border-radius:50%;
+                        animation:facimar-pulse 2s ease-out infinite;
+                        animation-delay: ${index * 0.4}s;
+                    "></div>
+                    <div style="
+                        position:absolute;inset:8px;
+                        background:#0d1b2e;
+                        border:2px solid ${sede.color};
+                        border-radius:50%;
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:18px;
+                    ">${sede.icon}</div>
+                </div>`,
+            iconSize: [48, 48],
+            iconAnchor: [24, 24]
+        });
+
+        const marker = L.marker([sede.lat, sede.lng], { icon: custom_icon })
+            .addTo(leafletMap)
+            .bindPopup(`
+                <div style="font-family:sans-serif; text-align:center;">
+                    <strong>📍 ${sede.label}</strong>
+                </div>`);
+                
+        if (sede.label === "FACIMAR UV") {
+            marker.openPopup();
+        }
     });
-
-    L.marker([FACIMAR_LAT, FACIMAR_LNG], { icon: facimar_icon })
-        .addTo(leafletMap)
-        .bindPopup(`
-            <div style="font-family:sans-serif; text-align:center;">
-                <strong>📍 FACIMAR UV</strong>
-            </div>`)
-        .openPopup();
 
     // Añadir keyframe de animación al DOM
     if (!document.getElementById('facimar-style')) {
@@ -1059,7 +1072,7 @@ if ('serviceWorker' in navigator) {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('🔄 Nueva actualización (v8) detectada. Reiniciando App...');
+                        showToast('🔄 Nueva actualización (v14) detectada. Reiniciando App...');
                         setTimeout(() => window.location.reload(true), 2500);
                     }
                 });
@@ -1076,4 +1089,33 @@ if ('serviceWorker' in navigator) {
         });
     });
 }
+
+// ---- Instalación PWA (Añadir a Inicio) ----
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevenir que Chrome muestre el prompt por defecto
+    e.preventDefault();
+    // Guardar el evento
+    deferredPrompt = e;
+    
+    // Mostrar nuestro botón de instalación
+    const installBtn = document.getElementById('btn-install-pwa');
+    if (installBtn) {
+        installBtn.classList.remove('hidden');
+        installBtn.onclick = () => {
+            installBtn.classList.add('hidden');
+            // Mostrar prompt de instalación
+            deferredPrompt.prompt();
+            // Esperar resultado
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('Usuario aceptó instalar PWA');
+                } else {
+                    console.log('Usuario rechazó PWA');
+                }
+                deferredPrompt = null;
+            });
+        };
+    }
+});
 
