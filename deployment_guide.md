@@ -25,7 +25,8 @@ Sigue estos pasos para que tu aplicación sea accesible desde cualquier lugar:
 Cuando quieras pasar del **Modo Demo** al seguimiento real:
 
 1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com/).
-2. Habilita **Firestore Database** y **Anonymous Authentication**.
+2. Habilita **Realtime Database** (NO Firestore) y configúrala en **Modo de Prueba** (Test mode).
+3. Habilita **Anonymous Authentication** en la sección Authentication.
 3. Copia tu configuración web y pégala en `js/config.js`.
 4. Cambia `const DEMO_MODE = true;` a `false;`.
 5. Vuelve a desplegar.
