@@ -214,20 +214,24 @@ function updateMapMarkers(activeUsers) {
     // 1. Agrupar viajeros por proximidad (< 150m) si son de la misma micro
     let clusters = [];
     activeUsers.forEach(u => {
-        if (!observerMode && u.id === myUserId) return; // Ignorar mi posición para el listado remote
         if (activeFilter !== 'all' && u.micro !== activeFilter) return;
 
         let added = false;
         for (let c of clusters) {
             if (c.micro === u.micro && getDistanceMeters(c.lat, c.lng, u.lat, u.lng) < 150) {
                 c.count++;
+                if (u.id === myUserId) c.includesMe = true;
                 if (u.lastUpdate > c.lastUpdate) c.lastUpdate = u.lastUpdate; // Timestamp más reciente
                 added = true;
                 break;
             }
         }
         if (!added) {
-            clusters.push({ id: u.id, micro: u.micro, lat: u.lat, lng: u.lng, count: 1, lastUpdate: u.lastUpdate || 0 });
+            clusters.push({ 
+                id: u.id, micro: u.micro, lat: u.lat, lng: u.lng, 
+                count: 1, lastUpdate: u.lastUpdate || 0,
+                includesMe: (u.id === myUserId)
+            });
         }
     });
 
@@ -243,6 +247,29 @@ function updateMapMarkers(activeUsers) {
 
     // Crear o actualizar clusters
     clusters.forEach(c => {
+        // Si no estamos en modo observador y el cluster me incluye, actualizamos el myMarker local en lugar de uno remoto
+        if (!observerMode && c.includesMe) {
+            if (myMarker) {
+                const color = getColor(c.micro);
+                const sizeHeight = 36;
+                const sizeWidth = sizeHeight * 1.6;
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color, c.count)}</div>`,
+                    iconSize: [sizeWidth, sizeHeight],
+                    iconAnchor: [sizeWidth/2, sizeHeight/2]
+                });
+                myMarker.setIcon(icon);
+                
+                let popupText = `<strong>📍 Tú</strong><br>Micro ${c.micro}`;
+                if (c.count > 1) {
+                    popupText += `<br>¡Vas junto a ${c.count - 1} colega(s)! 🙌`;
+                }
+                myMarker.setPopupContent(popupText);
+            }
+            return; // No dibujar remoteMarker para evitar doble ícono encima de miMarker
+        }
+
         const color = getColor(c.micro);
         const sizeHeight = c.count > 1 ? 28 : 24; // Ligeramente más grande si es cluster
         const sizeWidth = sizeHeight * 1.6;
