@@ -7,23 +7,23 @@
 
 /* Variables */
 :root {
-    --primary: #1a2f5e;
-    --primary-light: #2a4a8f;
-    --accent: #00b4d8;
-    --accent-601: #e63946;
-    --accent-302: #2a6fdb;
-    --accent-otro: #a78bfa;
-    --bg: #0d1b2e;
-    --bg-card: #132342;
-    --bg-card2: #0f1e38;
-    --text: #e8f0fe;
-    --text-muted: #8baabe;
+    --primary: #312e81; /* Indigo oscuro */
+    --primary-light: #4338ca;
+    --accent: #a855f7; /* Violeta moderno vibrante */
+    --accent-601: #f43f5e; /* Rojo neón */
+    --accent-302: #3b82f6; /* Azul brillante */
+    --accent-otro: #10b981; /* Esmeralda */
+    --bg: #0f172a; /* Slate profundo */
+    --bg-card: #1e293b;
+    --bg-card2: #334155;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
     --danger: #ef4444;
-    --success: #22c55e;
+    --success: #10b981;
     --warning: #f59e0b;
-    --shadow: 0 8px 30px rgba(0,0,0,0.4);
-    --radius: 18px;
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow: 0 10px 40px rgba(0,0,0,0.5);
+    --radius: 28px; /* Formas mucho más redondeadas y suaves */
+    --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Reset */
@@ -59,7 +59,7 @@ html, body {
 
 /* ---- SPLASH ---- */
 #splash-screen {
-    background: linear-gradient(160deg, #0d1b2e 0%, #1a2f5e 60%, #00b4d8 130%);
+    background: linear-gradient(135deg, #0f172a 0%, #312e81 50%, #a855f7 150%);
     justify-content: center;
     align-items: center;
 }
@@ -79,15 +79,15 @@ html, body {
 }
 
 .logo-icon {
-    font-size: 5rem;
+    font-size: 5.5rem;
     margin-bottom: 0.5rem;
-    filter: drop-shadow(0 0 20px rgba(0, 180, 216, 0.6));
-    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 25px rgba(168, 85, 247, 0.8));
+    animation: float 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-12px) scale(1.05); }
 }
 
 .app-title {
@@ -142,22 +142,23 @@ html, body {
 .btn-primary {
     width: 100%;
     padding: 1.2rem;
-    background: var(--accent);
-    color: #0d1b2e;
+    background: linear-gradient(135deg, var(--accent), #d946ef);
+    color: white;
     border: none;
-    border-radius: var(--radius);
+    border-radius: 50px; /* Pill shape para destacarlo */
     font-family: 'Outfit', sans-serif;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: 700;
     cursor: pointer;
     transition: var(--transition);
-    box-shadow: 0 4px 20px rgba(0,180,216,0.4);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+    letter-spacing: 1px;
 }
 
 .btn-primary:hover {
-    background: white;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0,180,216,0.5);
+    background: linear-gradient(135deg, #d946ef, var(--accent));
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.6);
 }
 
 .btn-primary:active { transform: translateY(0) scale(0.97); opacity: 0.9; }

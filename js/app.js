@@ -19,6 +19,8 @@ let heatmapActive    = false;
 let observerMode     = false; // Modo solo-ver: conecta a Firebase pero no publica posición
 let listenerActive   = false; // Guard: evitar listeners duplicados en Firebase
 let pendingListenerInit = false; // Si auth terminó antes que el mapa, activar listener al abrir mapa
+const DEMO_MODE      = false; // Falso para producción con Firebase
+
 
 // ---- Inicialización de Firebase ----
 let db = null;
@@ -39,6 +41,9 @@ try {
             .then((result) => {
                 myUserId = result.user.uid;
                 console.log('[MICS] Autenticado anónimamente ✅ ID:', myUserId);
+                
+                // Limpieza automática al desconectar o cerrar la app
+                db.ref("viajeros/" + myUserId).onDisconnect().remove();
                 
                 db.ref('.info/serverTimeOffset').on('value', function(snapshot) {
                     serverTimeOffset = snapshot.val() || 0;
@@ -368,7 +373,8 @@ function initMapIfNeeded() {
 }
 
 // ---- Límite máximo de viajeros en Firebase ----
-const MAX_VIAJEROS = 50;
+const MAX_VIAJEROS = 500; // Incrementado drásticamente para evitar borrado prematuro
+
 
 // ---- Conexión: actualizar el punto en la UI ----
 function setConnStatus(online) {
@@ -483,7 +489,7 @@ function initRealTimeUpdates() {
         snapshot.forEach((child) => {
             const data = child.val();
             if (!data || data.lat == null || data.lng == null) return;
-            const lastUpdate = data.lastUpdate || 0;
+            const lastUpdate = data.lastUpdate || now; // Si no tiene timestamp asume actual
             // Incluir viajeros activos en los últimos 15 minutos
             if (now - lastUpdate < 900000) {
                 activeUsersList.push({ id: child.key, ...data });
@@ -836,7 +842,8 @@ function publishMyPosition(lat, lng, micro) {
             lastUpdate: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
             console.log('[MICS] Posición publicada en Firebase ✅');
-            enforceViajerosCap();
+            // enforceViajerosCap se llama menos frecuente (cada 100 llamadas o manual) 
+            // no es necesario acá ya que existe onDisconnect()
         }).catch(err => {
             console.error('[MICS] Error subiendo posición:', err);
             showToast('⚠️ Error sincronizando posición');
