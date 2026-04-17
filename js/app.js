@@ -1093,12 +1093,15 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register(swPath).then(reg => {
             console.log('[PWA] Service Worker registrado', reg);
             
+            // Forzar revisión de actualización en el servidor cada vez que se carga la página
+            reg.update();
+            
             // Detectar si el explorador descarga un service worker nuevo
             reg.addEventListener('updatefound', () => {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('🔄 Nueva actualización (v15) detectada. Reiniciando App...');
+                        showToast('🔄 Nueva actualización (v16) detectada. Reiniciando App...');
                         setTimeout(() => window.location.reload(true), 2500);
                     }
                 });
