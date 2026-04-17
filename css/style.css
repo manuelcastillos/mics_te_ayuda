@@ -419,10 +419,10 @@ html, body {
 }
 
 .avatar-options {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 0.5rem 0.8rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8rem 0.5rem;
+    justify-items: center;
 }
 
 .avatar-options label {
