@@ -662,7 +662,7 @@ html, body {
 
 .map-legend {
     position: absolute;
-    bottom: 2rem;
+    bottom: calc(3rem + env(safe-area-inset-bottom, 1rem));
     left: 1rem;
     background: rgba(13, 27, 46, 0.92);
     backdrop-filter: blur(10px);
@@ -698,7 +698,7 @@ html, body {
 /* ---- Boton flotante "Centrar en mí" ---- */
 .btn-center-me {
     position: absolute;
-    bottom: 7rem;
+    bottom: calc(8rem + env(safe-area-inset-bottom, 1rem));
     right: 1rem;
     z-index: 1001;
     width: 46px;

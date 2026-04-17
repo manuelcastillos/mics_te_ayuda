@@ -70,32 +70,10 @@
                 </div>
             </section>
 
-            <!-- Selector de micro -->
+            <!-- Selector de micro y avatar -->
             <section id="selector-section">
-                <h3 class="section-title">¿Cuál micro tomaste?</h3>
-                <div class="micro-grid">
-                    <button class="micro-btn micro-601" onclick="selectMicro('601')" id="btn-601">
-                        <span class="micro-number">601</span>
-                        <span class="micro-label">Valpo-FACIMAR</span>
-                    </button>
-                    <button class="micro-btn micro-302" onclick="selectMicro('302')" id="btn-302">
-                        <span class="micro-number">302</span>
-                        <span class="micro-label">Interior-FACIMAR</span>
-                    </button>
-                    <button class="micro-btn micro-otro" onclick="requestCustomMicro()" id="btn-otro">
-                        <span class="micro-number">Otra</span>
-                        <span class="micro-label">Otras líneas</span>
-                    </button>
-                </div>
-
-                <!-- Input para micro personalizada -->
-                <div id="custom-micro-area" class="custom-micro-area hidden">
-                    <input type="text" id="custom-micro-name" placeholder="Escribe el n° (ej: 704)" maxlength="8">
-                    <button class="btn-confirm" onclick="confirmCustomMicro()">Confirmar ✅</button>
-                </div>
-
                 <!-- Selector de Avatar -->
-                <div class="avatar-selector">
+                <div class="avatar-selector" style="margin-top: 0; padding-top: 0; border-top: none; padding-bottom: 1.5rem; border-bottom: 1px dashed rgba(255,255,255,0.1); margin-bottom: 1.5rem;">
                     <h3 class="section-title">Elige tu Avatar</h3>
                     <div class="avatar-options">
                         <label>
@@ -121,6 +99,30 @@
                     </div>
                 </div>
 
+                <h3 class="section-title">¿Cuál micro tomaste?</h3>
+                <div class="micro-grid">
+                    <button class="micro-btn micro-601" onclick="selectMicro('601')" id="btn-601">
+                        <span class="micro-number">601</span>
+                        <span class="micro-label">Valpo-FACIMAR</span>
+                    </button>
+                    <button class="micro-btn micro-302" onclick="selectMicro('302')" id="btn-302">
+                        <span class="micro-number">302</span>
+                        <span class="micro-label">Interior-FACIMAR</span>
+                    </button>
+                    <button class="micro-btn micro-otro" onclick="requestCustomMicro()" id="btn-otro">
+                        <span class="micro-number">Otra</span>
+                        <span class="micro-label">Otras líneas</span>
+                    </button>
+                </div>
+
+                <!-- Input para micro personalizada -->
+                <div id="custom-micro-area" class="custom-micro-area hidden">
+                    <input type="text" id="custom-micro-name" placeholder="Escribe el n° (ej: 704)" maxlength="8">
+                    <button class="btn-confirm" onclick="confirmCustomMicro()">Confirmar ✅</button>
+                </div>
+
+                 <!-- El selector de avatar ahora se movió arriba -->
+
                 <!-- Modo Observador -->
                 <div class="observer-row">
                     <button class="btn-observer" onclick="startObserving()" id="btn-observer">
@@ -143,6 +145,10 @@
                         <span class="eta-value" id="eta-value">–</span>
                     </div>
                 </div>
+                <!-- Botón adicional para ir directo al mapa -->
+                <button class="btn-primary" onclick="showScreen('map-screen')" style="margin-top: 0.5rem; display:flex; justify-content:center; gap:0.5rem; background: linear-gradient(135deg, #00b4d8, #0077b6);">
+                    🗺️ Ver ubicación en el Mapa
+                </button>
                 <!-- Alerta de proximidad inline -->
                 <div class="proximity-alert hidden" id="proximity-alert">
                     <span class="proximity-icon">🔔</span>
