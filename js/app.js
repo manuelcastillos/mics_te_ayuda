@@ -82,26 +82,40 @@ function getColor(micro) {
     return COLORS[micro] || COLORS['default'];
 }
 
-// Generador de SVG para la micro (vista de lado)
-function getBusIconHTML(color, count = 1) {
-    const badgeHTML = count > 1 ? `
-  <circle cx="95" cy="5" r="15" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
-  <text x="95" y="10" font-family="sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">${count}</text>
-  ` : '';
-    return `<svg style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5)); overflow:visible;" viewBox="-5 -5 115 65" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
-  <path d="M 8,15 Q 8,8 15,8 L 80,8 Q 95,8 96,25 L 96,48 Q 96,52 92,52 L 8,52 Q 4,52 4,48 Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
-  <rect x="12" y="14" width="18" height="18" rx="2" fill="#ffffff" />
-  <rect x="34" y="14" width="22" height="18" rx="2" fill="#ffffff" />
-  <rect x="60" y="14" width="16" height="18" rx="2" fill="#ffffff" />
-  <path d="M 80,14 L 87,14 Q 91,14 93.5,28 L 80,28 Z" fill="#ffffff"/>
-  <circle cx="25" cy="52" r="8" fill="#222" stroke="#ffffff" stroke-width="2"/>
-  <circle cx="75" cy="52" r="8" fill="#222" stroke="#ffffff" stroke-width="2"/>
-  <circle cx="25" cy="52" r="3" fill="#ccc"/>
-  <circle cx="75" cy="52" r="3" fill="#ccc"/>
-  <rect x="94" y="42" width="4" height="6" rx="1" fill="#facc15" />
-  <rect x="2" y="36" width="3" height="8" rx="1" fill="#ef4444" />
-  ${badgeHTML}
-</svg>`;
+// Generador de SVG para la micro (vista de lado) o Avatar
+function getBusIconHTML(color, count = 1, avatar = '🚌') {
+    const isBus = !avatar || avatar === '🚌';
+    
+    if (isBus) {
+        const badgeHTML = count > 1 ? `
+      <circle cx="95" cy="5" r="15" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+      <text x="95" y="10" font-family="sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">${count}</text>
+      ` : '';
+        return `<svg style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5)); overflow:visible;" viewBox="-5 -5 115 65" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+      <path d="M 8,15 Q 8,8 15,8 L 80,8 Q 95,8 96,25 L 96,48 Q 96,52 92,52 L 8,52 Q 4,52 4,48 Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
+      <rect x="12" y="14" width="18" height="18" rx="2" fill="#ffffff" />
+      <rect x="34" y="14" width="22" height="18" rx="2" fill="#ffffff" />
+      <rect x="60" y="14" width="16" height="18" rx="2" fill="#ffffff" />
+      <path d="M 80,14 L 87,14 Q 91,14 93.5,28 L 80,28 Z" fill="#ffffff"/>
+      <circle cx="25" cy="52" r="8" fill="#222" stroke="#ffffff" stroke-width="2"/>
+      <circle cx="75" cy="52" r="8" fill="#222" stroke="#ffffff" stroke-width="2"/>
+      <circle cx="25" cy="52" r="3" fill="#ccc"/>
+      <circle cx="75" cy="52" r="3" fill="#ccc"/>
+      <rect x="94" y="42" width="4" height="6" rx="1" fill="#facc15" />
+      <rect x="2" y="36" width="3" height="8" rx="1" fill="#ef4444" />
+      ${badgeHTML}
+    </svg>`;
+    } else {
+        const badgeHTML = count > 1 ? `
+        <div style="position:absolute; top:-6px; right:-6px; background:#ef4444; color:white; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3); z-index:10;">
+            ${count}
+        </div>` : '';
+        return `
+        <div style="position:relative; width:100%; height:100%; border-radius:50%; background:${color}; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:24px; filter:drop-shadow(0px 3px 5px rgba(0,0,0,0.5));">
+            ${avatar}
+            ${badgeHTML}
+        </div>`;
+    }
 }
 
 // Radio de llegada a FACIMAR (metros)
@@ -230,7 +244,8 @@ function updateMapMarkers(activeUsers) {
             clusters.push({ 
                 id: u.id, micro: u.micro, lat: u.lat, lng: u.lng, 
                 count: 1, lastUpdate: u.lastUpdate || 0,
-                includesMe: (u.id === myUserId)
+                includesMe: (u.id === myUserId),
+                avatar: u.avatar || '🚌'
             });
         }
     });
@@ -251,11 +266,12 @@ function updateMapMarkers(activeUsers) {
         if (!observerMode && c.includesMe) {
             if (myMarker) {
                 const color = getColor(c.micro);
-                const sizeHeight = 36;
-                const sizeWidth = sizeHeight * 1.6;
+                const isBus = !c.avatar || c.avatar === '🚌';
+                const sizeHeight = isBus ? 36 : 42;
+                const sizeWidth = isBus ? sizeHeight * 1.6 : 42;
                 const icon = L.divIcon({
                     className: '',
-                    html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color, c.count)}</div>`,
+                    html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color, c.count, c.avatar)}</div>`,
                     iconSize: [sizeWidth, sizeHeight],
                     iconAnchor: [sizeWidth/2, sizeHeight/2]
                 });
@@ -271,11 +287,13 @@ function updateMapMarkers(activeUsers) {
         }
 
         const color = getColor(c.micro);
-        const sizeHeight = c.count > 1 ? 28 : 24; // Ligeramente más grande si es cluster
-        const sizeWidth = sizeHeight * 1.6;
+        const isBus = !c.avatar || c.avatar === '🚌';
+        // Ligeramente más grande si es cluster para que se vea bien
+        const sizeHeight = isBus && c.count > 1 ? 28 : (isBus ? 24 : 36); 
+        const sizeWidth = isBus ? sizeHeight * 1.6 : 36;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color, c.count)}</div>`,
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color, c.count, c.avatar)}</div>`,
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
@@ -862,11 +880,16 @@ function publishMyPosition(lat, lng, micro) {
     // Dibujar mi propio marcador
     if (leafletMap) {
         const color = getColor(micro);
-        const sizeHeight = 36;
-        const sizeWidth = sizeHeight * 1.6;
+        // Obtener el avatar seleccionado
+        const selAvatarOpt = document.querySelector('input[name="avatar"]:checked');
+        const myAvatar = selAvatarOpt ? selAvatarOpt.value : '🚌';
+        const isBus = !myAvatar || myAvatar === '🚌';
+        
+        const sizeHeight = isBus ? 36 : 42;
+        const sizeWidth = isBus ? sizeHeight * 1.6 : 42;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color)}</div>`,
+            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color, 1, myAvatar)}</div>`,
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
@@ -877,8 +900,11 @@ function publishMyPosition(lat, lng, micro) {
 
     // Enviar a Firebase si está activo
     if (db && myUserId) {
+        const selAvatarOpt = document.querySelector('input[name="avatar"]:checked');
+        const myAvatar = selAvatarOpt ? selAvatarOpt.value : '🚌';
+        
         db.ref("viajeros/" + myUserId).set({
-            lat, lng, micro,
+            lat, lng, micro, avatar: myAvatar,
             lastUpdate: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
             console.log('[MICS] Posición publicada en Firebase ✅');

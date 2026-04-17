@@ -411,6 +411,46 @@ html, body {
     margin-top: 0.2rem;
 }
 
+/* ---- AVATAR SELECTOR ---- */
+.avatar-selector {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px dashed rgba(255,255,255,0.1);
+}
+
+.avatar-options {
+    display: flex;
+    justify-content: space-around;
+    gap: 0.5rem;
+}
+
+.avatar-options label {
+    cursor: pointer;
+}
+
+.avatar-options input[type="radio"] {
+    display: none;
+}
+
+.avatar-icon {
+    font-size: 2rem;
+    padding: 0.5rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    border: 2px solid transparent;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-options input[type="radio"]:checked + .avatar-icon {
+    background: rgba(167, 139, 250, 0.2);
+    border-color: #a78bfa;
+    transform: scale(1.15);
+    box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
+}
+
 /* ---- TRACKING ACTIVO ---- */
 .tracking-section {
     display: flex;
@@ -653,7 +693,7 @@ html, body {
 
 .dot-601     { background: var(--accent-601); box-shadow: 0 0 6px var(--accent-601); }
 .dot-302     { background: var(--accent-302); box-shadow: 0 0 6px var(--accent-302); }
-.dot-facimar { background: #00b4d8; box-shadow: 0 0 6px #00b4d8; }
+.dot-otra    { background: #a78bfa; box-shadow: 0 0 6px #a78bfa; }
 
 /* ---- Boton flotante "Centrar en mí" ---- */
 .btn-center-me {
