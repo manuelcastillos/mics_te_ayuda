@@ -420,8 +420,9 @@ html, body {
 
 .avatar-options {
     display: flex;
-    justify-content: space-around;
-    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.8rem;
 }
 
 .avatar-options label {
