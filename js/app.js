@@ -1101,7 +1101,7 @@ if ('serviceWorker' in navigator) {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('🔄 Nueva actualización (v18) detectada. Reiniciando App...');
+                        showToast('🔄 Nueva actualización (v19) detectada. Reiniciando App...');
                         setTimeout(() => window.location.reload(true), 2500);
                     }
                 });
