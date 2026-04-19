@@ -1753,3 +1753,84 @@ function renderTideChart(data) {
         }
     });
 }
+
+// ============================================================
+// 🌊 CORRIENTES MARINAS (TIPO GLORYS) — leaflet-velocity
+// ============================================================
+let currentsVelActive = false;
+let currentsVelLayer = null;
+
+async function fetchCurrentsGrid() {
+    const points = [];
+    for (let r = 0; r < WV_GRID.ny; r++) {
+        for (let c = 0; c < WV_GRID.nx; c++) {
+            points.push({ lat: WV_GRID.la1 - r * WV_GRID.dy, lng: WV_GRID.lo1 + c * WV_GRID.dx });
+        }
+    }
+    const results = await Promise.all(points.map(pt => 
+        fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${pt.lat}&longitude=${pt.lng}&current=ocean_current_velocity,ocean_current_direction`)
+        .then(r => r.json())
+    ));
+    const uData = [], vData = [];
+    results.forEach(d => {
+        if (d.current) {
+            const speed = d.current.ocean_current_velocity;
+            const dir = d.current.ocean_current_direction;
+            const rad = dir * Math.PI / 180;
+            uData.push(+(-speed * Math.sin(rad)).toFixed(3));
+            vData.push(+(-speed * Math.cos(rad)).toFixed(3));
+        } else {
+            uData.push(0); vData.push(0);
+        }
+    });
+    return { uData, vData };
+}
+
+async function drawCurrentStreamlines() {
+    if (!leafletMap || !currentsVelActive) return;
+    try {
+        const {uData, vData} = await fetchCurrentsGrid();
+        const header = { 
+            parameterCategory: 2, 
+            dx: WV_GRID.dx, dy: WV_GRID.dy, 
+            la1: WV_GRID.la1, lo1: WV_GRID.lo1, 
+            la2: WV_GRID.la2, lo2: WV_GRID.lo2, 
+            nx: WV_GRID.nx, ny: WV_GRID.ny, 
+            refTime: new Date().toISOString() 
+        };
+        const data = [
+            { header: { ...header, parameterNumber: 2 }, data: uData },
+            { header: { ...header, parameterNumber: 3 }, data: vData }
+        ];
+        if (currentsVelLayer) leafletMap.removeLayer(currentsVelLayer);
+        currentsVelLayer = L.velocityLayer({
+            displayValues: true,
+            displayOptions: { velocityType: 'Corriente Marina', speedUnit: 'm/s' },
+            data: data,
+            maxVelocity: 1.5,
+            particleMultiplier: 1/500, 
+            lineWidth: 2.5,           
+            particleAge: 120,
+            opacity: 0.9,
+            colorScale: ["#00ffff", "#00ffff"] // Turquesa sólido brillante
+        }).addTo(leafletMap);
+    } catch(e) { console.error(e); }
+}
+
+function toggleCurrentsLayer() {
+    currentsVelActive = !currentsVelActive;
+    const btn = document.getElementById('btn-layer-currents');
+    if (currentsVelActive) {
+        btn.classList.add('active');
+        drawCurrentStreamlines();
+        if (leafletMap) leafletMap.setView([-33.0, -73.5], 7, { animate: true, duration: 1.5 });
+    } else {
+        if (currentsVelLayer) {
+            leafletMap.removeLayer(currentsVelLayer);
+            currentsVelLayer = null;
+        }
+        btn.classList.remove('active');
+        centerMapOnUser();
+    }
+}
+window.toggleCurrentsLayer = toggleCurrentsLayer;
