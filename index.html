@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MICS Te Ayuda</title>
-    <meta name="description" content="Seguimiento en tiempo real de la micro 601 y 302 hacia FACIMAR UV">
+    <title>MICS Te Ayuda — Oceanografía + Transporte</title>
+    <meta name="description" content="Seguimiento en tiempo real de micros hacia FACIMAR UV · Datos oceanográficos en vivo: oleaje, TSM, mareas y viento">
     <meta name="theme-color" content="#0d1b2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,7 +18,11 @@
     <!-- Leaflet.heat (calor de puntos) -->
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
-    <link rel="stylesheet" href="css/style.css?v=20">
+    <!-- leaflet-velocity (campo de viento animado, estilo Windy) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.1/dist/leaflet-velocity.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.1/dist/leaflet-velocity.min.js"></script>
+
+    <link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
 
@@ -28,8 +32,8 @@
             <div class="logo-area">
                 <div class="logo-icon">✨🚍✨</div>
                 <h1 class="app-title">MICS<br><span>Te Ayuda</span></h1>
-                <div class="splash-version">v20 · Colegas en ruta</div>
-                <p class="app-tagline">Seguimiento en tiempo real hacia FACIMAR · UV Viña del Mar</p>
+                <div class="splash-version">v21 · Océano en vivo</div>
+                <p class="app-tagline">Transporte + Oceanografía en vivo · FACIMAR · UV Viña del Mar</p>
             </div>
             <div class="privacy-notice">
                 <div class="privacy-icon">🔒</div>
@@ -187,6 +191,70 @@
                 </div>
             </section>
 
+            <!-- =====================================================
+                 PANEL OCÉANO/ATMÓSFERA — Datos en tiempo real de Open-Meteo
+                 ===================================================== -->
+            <section class="ocean-panel" id="ocean-panel">
+                <div class="ocean-panel-header">
+                    <span class="ocean-panel-title">🌊 Océano / Atmósfera · Montemar</span>
+                    <div id="ocean-status-dot" class="ocean-dot ocean-dot-loading" title="Cargando datos..."></div>
+                </div>
+                <div class="ocean-grid" id="ocean-grid">
+                    <!-- Fila 1: Atmósfera -->
+                    <div class="ocean-card ocean-card-atm" id="oc-airtemp">
+                        <div class="ocean-card-icon" id="oc-airtemp-icon">🌡️</div>
+                        <div class="ocean-card-value" id="oc-airtemp-val">–</div>
+                        <div class="ocean-card-label">Temp. Aire</div>
+                    </div>
+                    <div class="ocean-card ocean-card-atm" id="oc-clouds">
+                        <div class="ocean-card-icon" id="oc-clouds-icon">⛅</div>
+                        <div class="ocean-card-value" id="oc-clouds-val">–</div>
+                        <div class="ocean-card-label">Nubosidad</div>
+                    </div>
+                    <div class="ocean-card ocean-card-atm" id="oc-uv">
+                        <div class="ocean-card-icon">☀️</div>
+                        <div class="ocean-card-value" id="oc-uv-val">–</div>
+                        <div class="ocean-card-label">Índice UV</div>
+                    </div>
+                    <div class="ocean-card ocean-card-atm" id="oc-wind">
+                        <div class="ocean-card-icon">💨</div>
+                        <div class="ocean-card-value" id="oc-wind-val">–</div>
+                        <div class="ocean-card-label">Viento</div>
+                    </div>
+                    <!-- Fila 2: Océano -->
+                    <div class="ocean-card" id="oc-wave">
+                        <div class="ocean-card-icon">🌊</div>
+                        <div class="ocean-card-value" id="oc-wave-val">–</div>
+                        <div class="ocean-card-label">Altura Ola</div>
+                    </div>
+                    <div class="ocean-card" id="oc-period">
+                        <div class="ocean-card-icon">⏱️</div>
+                        <div class="ocean-card-value" id="oc-period-val">–</div>
+                        <div class="ocean-card-label">Periodo</div>
+                    </div>
+                    <div class="ocean-card" id="oc-sst">
+                        <div class="ocean-card-icon">🌡️</div>
+                        <div class="ocean-card-value" id="oc-sst-val">–</div>
+                        <div class="ocean-card-label">TSM</div>
+                    </div>
+                    <div class="ocean-card" id="oc-dir">
+                        <div class="ocean-card-icon">🧭</div>
+                        <div class="ocean-card-value" id="oc-dir-val">–</div>
+                        <div class="ocean-card-label">Dir. Oleaje</div>
+                    </div>
+                    <div class="ocean-card" id="oc-tide" title="Nivel del Mar en Valparaíso (IOC)">
+                        <div class="ocean-card-icon">📈</div>
+                        <div class="ocean-card-value" id="oc-tide-val">–</div>
+                        <div class="ocean-card-label">Marea (m)</div>
+                    </div>
+                </div>
+                <div class="ocean-footer">
+                    <span>Open-Meteo Marine + Weather · actualización horaria</span>
+                    <button class="btn-windy" id="btn-windy" onclick="openWindyModal()" title="Ver en Windy">🌬️ Ver en Windy</button>
+                </div>
+            </section>
+
+
             <!-- Botón de Compartir (Abajo) -->
             <section class="share-section">
                 <!-- Botón de Instalar (Oculto por defecto, se activa por JS) -->
@@ -216,6 +284,12 @@
                     <button class="filter-btn" onclick="filterMap('302')" id="filter-302">302</button>
                 </div>
                 <button class="btn-heatmap-toggle" onclick="toggleHeatmap()" id="btn-heatmap" title="Modo Densidad (Heatmap)">🔥</button>
+                <!-- Capas océano en el mapa -->
+                <button class="btn-ocean-layer" onclick="toggleOceanLayer('sst')"   id="btn-layer-sst"   title="Temp. Superficial del Mar (MODIS)">🌡️</button>
+                <button class="btn-ocean-layer" onclick="toggleOceanLayer('waves')" id="btn-layer-waves" title="Altura de Ola (NOAA WW3)">🌊</button>
+                <button class="btn-ocean-layer" onclick="toggleOceanLayer('chlor')" id="btn-layer-chlor" title="Clorofila-a (MODIS)">🟢</button>
+                <button class="btn-ocean-layer" onclick="toggleTideModal()" id="btn-layer-tide" title="Marea en Tiempo Real (Valparaíso)">📈</button>
+                <button class="btn-ocean-layer btn-wind-layer" onclick="toggleWindArrows()" id="btn-layer-wind" title="Partículas de Viento">💨</button>
             </div>
         </header>
         <!-- Alerta flotante de proximidad sobre el mapa -->
@@ -224,11 +298,22 @@
             <span id="map-proximity-msg">¡Compañero a menos de 100m!</span>
         </div>
         <div id="map"></div>
+        <!-- Mini panel oceanográfico flotante sobre el mapa -->
+        <div class="map-ocean-strip" id="map-ocean-strip">
+            <span class="mos-item" id="mos-wave">🌊 –</span>
+            <span class="mos-sep">·</span>
+            <span class="mos-item" id="mos-sst">🌡️ –</span>
+            <span class="mos-sep">·</span>
+            <span class="mos-item" id="mos-wind">💨 –</span>
+        </div>
         <button class="btn-center-me" id="btn-center-me" onclick="centerOnMe()" title="Centrar en mi posición">📍</button>
+        <!-- Botón de Windy flotante -->
+        <button class="btn-windy-map" id="btn-windy-map" onclick="openWindyModal()" title="Ver condiciones en Windy">🌬️</button>
         <div class="map-legend">
             <div class="legend-item"><span class="dot dot-601"></span>601</div>
             <div class="legend-item"><span class="dot dot-302"></span>302</div>
             <div class="legend-item"><span class="dot dot-otra"></span>Otra</div>
+            <div class="legend-item ocean-legend-item" id="ocean-layer-legend" style="display:none;"><span class="dot" style="background: linear-gradient(135deg,#0077b6,#f46036); box-shadow: none;"></span><span id="ocean-layer-legend-name">TSM</span></div>
         </div>
     </div>
 
@@ -249,14 +334,64 @@
         </a>
     </div>
 
+    <!-- =============================================
+         MODAL WINDY — Embed iframe
+         ============================================= -->
+    <div class="windy-modal-overlay hidden" id="windy-modal-overlay" onclick="closeWindyModal()"></div>
+    <div class="windy-modal hidden" id="windy-modal">
+        <div class="windy-modal-header">
+            <span class="windy-modal-title">🌬️ Condiciones en Windy · Montemar</span>
+            <button class="btn-close-modal" aria-label="Cerrar modal Windy" onclick="closeWindyModal()">✕</button>
+        </div>
+        <div class="windy-iframe-wrap">
+            <iframe
+                id="windy-iframe"
+                src=""
+                data-src="https://embed.windy.com/embed2.html?lat=-32.957&lon=-71.550&detailLat=-32.957&detailLon=-71.550&width=650&height=450&zoom=10&level=surface&overlay=wind&product=ecmwf&menu=&message=&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=true&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1"
+                width="100%"
+                height="420"
+                frameborder="0"
+                title="Windy Montemar"
+                loading="lazy"
+                allowfullscreen>
+            </iframe>
+        </div>
+        <div class="windy-tabs">
+            <button class="windy-tab active" id="wtab-wind" onclick="switchWindyLayer('wind')">💨 Viento</button>
+            <button class="windy-tab" id="wtab-waves" onclick="switchWindyLayer('waves')">🌊 Oleaje</button>
+            <button class="windy-tab" id="wtab-temp" onclick="switchWindyLayer('temp')">🌡️ Temp.</button>
+        </div>
+    </div>
+
     <!-- Scripts de Firebase (v10+ Compat para esta configuración) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
     <!-- Scripts de la App -->
-    <script src="js/config.js?v=20"></script>
-    <script src="js/app.js?v=20"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/config.js?v=21"></script>
+    <script src="js/app.js?v=21"></script>
+
+    <!-- Modal de Marea -->
+    <div id="tide-modal" class="modal-overlay hidden" onclick="closeTideModal()">
+        <div class="modal-content tide-modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>📈 Nivel del Mar — Estación Valparaíso</h3>
+                <button class="modal-close" onclick="closeTideModal()">✕</button>
+            </div>
+                        <!-- Gráfico de Marea -->
+            <div class="tide-chart-container" style="padding: 0.5rem 1rem; background: rgba(0,0,0,0.2);">
+                <canvas id="tide-chart" height="150" style="max-height: 150px;"></canvas>
+            </div>
+            <div class="tide-table-container" id="tide-table-container">
+                <p style="text-align:center; padding:1.5rem; color:var(--text-muted)">Cargando datos de IOC Sea Level Monitoring...</p>
+            </div>
+            <div class="modal-footer" style="font-size: 0.75rem; color:var(--text-muted); text-align:center; padding: 0.5rem;">
+                Fuente: IOC Sea Level Monitoring Facility (valp2) · <span id="tide-update-time">Actualizando...</span>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

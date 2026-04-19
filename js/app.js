@@ -17,14 +17,16 @@ let lastSyncTime     = null;
 let heatmapLayer     = null;
 let heatmapActive    = false;
 let observerMode     = false; // Modo solo-ver: conecta a Firebase pero no publica posición
-let listenerActive   = false; // Guard: evitar listeners duplicados en Firebase
-let pendingListenerInit = false; // Si auth terminó antes que el mapa, activar listener al abrir mapa
-const DEMO_MODE      = false; // Falso para producción con Firebase
+let listenerActive   = false; 
+let pendingListenerInit = false; 
+let hasCenteredOnThisSession = false; // Flag to center map once GPS is found
 
+const DEMO_MODE      = false; // Falso para producción con Firebase
 
 // ---- Inicialización de Firebase ----
 let db = null;
 let serverTimeOffset = 0;
+
 try {
     if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "TU-API-KEY") {
         firebase.initializeApp(FIREBASE_CONFIG);
@@ -78,6 +80,7 @@ const COLORS = {
     '302': '#2a6fdb',
     'default': '#a78bfa'
 };
+
 function getColor(micro) {
     return COLORS[micro] || COLORS['default'];
 }
@@ -91,6 +94,7 @@ function getBusIconHTML(color, count = 1, avatar = '🚌') {
       <circle cx="95" cy="5" r="15" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
       <text x="95" y="10" font-family="sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">${count}</text>
       ` : '';
+
         return `<svg style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5)); overflow:visible;" viewBox="-5 -5 115 65" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
       <path d="M 8,15 Q 8,8 15,8 L 80,8 Q 95,8 96,25 L 96,48 Q 96,52 92,52 L 8,52 Q 4,52 4,48 Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
       <rect x="12" y="14" width="18" height="18" rx="2" fill="#ffffff" />
@@ -159,6 +163,7 @@ let demoTravelers = [
     { id: 'demo_4', micro: '302', progress: 0.70, name: 'Viajero D' },
     { id: 'demo_5', micro: '601', progress: 0.80, name: 'Viajero E' }
 ];
+
 let demoMarkerRefs = {}; // Leaflet markers por id
 
 // ---- Navegación entre pantallas ----
@@ -167,7 +172,19 @@ function showScreen(id) {
     const target = document.getElementById(id);
     if (target) {
         target.classList.add('active');
-        if (id === 'map-screen') initMapIfNeeded();
+        if (id === 'map-screen') {
+            initMapIfNeeded();
+            // Si ya tenemos GPS, centrar de inmediato
+            if (window.latestPos && leafletMap) {
+                const { latitude, longitude } = window.latestPos.coords;
+                leafletMap.setView([latitude, longitude], 15);
+                hasCenteredOnThisSession = true;
+            } else {
+                hasCenteredOnThisSession = false; // Reset para centrar cuando llegue el primer punto
+            }
+        } else {
+            hasCenteredOnThisSession = false; // Reset al salir del mapa
+        }
     }
 }
 window.showScreen = showScreen;
@@ -229,7 +246,6 @@ function updateMapMarkers(activeUsers) {
     let clusters = [];
     activeUsers.forEach(u => {
         if (activeFilter !== 'all' && u.micro !== activeFilter) return;
-
         let added = false;
         for (let c of clusters) {
             if (c.micro === u.micro && getDistanceMeters(c.lat, c.lng, u.lat, u.lng) < 150) {
@@ -386,7 +402,7 @@ function initMapIfNeeded() {
                 <div style="font-family:sans-serif; text-align:center;">
                     <strong>📍 ${sede.label}</strong>
                 </div>`);
-                
+        
         if (sede.label === "FACIMAR UV") {
             marker.openPopup();
         }
@@ -433,7 +449,6 @@ function initMapIfNeeded() {
 // ---- Límite máximo de viajeros en Firebase ----
 const MAX_VIAJEROS = 500; // Incrementado drásticamente para evitar borrado prematuro
 
-
 // ---- Conexión: actualizar el punto en la UI ----
 function setConnStatus(online) {
     const dot = document.getElementById('conn-status');
@@ -447,13 +462,17 @@ function updateETA(lat, lng) {
     const distKm = getDistanceMeters(lat, lng, FACIMAR_LAT, FACIMAR_LNG) / 1000;
     // Velocidad promedio de micro en Viña: ~25 km/h en ruta urbana
     const etaMin = Math.ceil((distKm / 25) * 60);
+
     const badge = document.getElementById('eta-badge');
     const val   = document.getElementById('eta-value');
+
     if (!badge || !val) return;
+
     if (distKm < 0.05) { // Ya llegó
         badge.style.display = 'none';
         return;
     }
+
     badge.style.display = 'flex';
     val.textContent = etaMin <= 1 ? '~1 min' : `~${etaMin} min`;
 }
@@ -469,6 +488,7 @@ function checkProximityAlert(activeUsersList) {
         clearProximityUI();
         return;
     }
+
     const myLat = window.latestPos.coords.latitude;
     const myLng = window.latestPos.coords.longitude;
 
@@ -480,7 +500,7 @@ function checkProximityAlert(activeUsersList) {
     if (nearby.length > 0) {
         const micros = [...new Set(nearby.map(u => u.micro))].join(', ');
         const msg = `¡${nearby.length > 1 ? nearby.length + ' compañeros' : 'Compañero'} a menos de 100m! Micro: ${micros}`;
-
+        
         // Banner sobre el mapa
         const mapBanner = document.getElementById('map-proximity-banner');
         const mapMsg    = document.getElementById('map-proximity-msg');
@@ -494,6 +514,7 @@ function checkProximityAlert(activeUsersList) {
         if (!proximityAlertActive) {
             proximityAlertActive = true;
             if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+
             // Auto-reset visibilidad del banner después de 30s
             clearTimeout(proximityAlertTimeout);
             proximityAlertTimeout = setTimeout(() => {
@@ -530,6 +551,7 @@ function initRealTimeUpdates() {
         console.warn('[MICS] initRealTimeUpdates: auth no lista, diferido.');
         return;
     }
+
     // Guard: solo registrar el listener UNA VEZ
     if (listenerActive) {
         console.log('[MICS] Listener ya activo, no se duplica.');
@@ -537,6 +559,7 @@ function initRealTimeUpdates() {
     }
     listenerActive = true;
     pendingListenerInit = false;
+
     console.log('[MICS] 🔴 Iniciando listener de /viajeros...');
     
     db.ref("viajeros").on("value", (snapshot) => {
@@ -547,7 +570,9 @@ function initRealTimeUpdates() {
         snapshot.forEach((child) => {
             const data = child.val();
             if (!data || data.lat == null || data.lng == null) return;
+
             const lastUpdate = data.lastUpdate || now; // Si no tiene timestamp asume actual
+            
             // Incluir viajeros activos en los últimos 15 minutos
             if (now - lastUpdate < 900000) {
                 activeUsersList.push({ id: child.key, ...data });
@@ -587,6 +612,7 @@ function initRealTimeUpdates() {
 
         window.latestActiveUsersList = activeUsersList;
         checkProximityAlert(activeUsersList);
+
     }, (error) => {
         console.error('[MICS] Error leyendo /viajeros:', error.code, error.message);
         showToast('⚠️ Sin permiso para leer el mapa. Revisa las reglas de Firebase.');
@@ -717,7 +743,7 @@ function selectMicro(micro) {
     document.getElementById('status-icon').textContent = '📡';
     document.getElementById('status-title').textContent = `${label} seleccionada`;
     document.getElementById('status-subtitle').textContent = 'Solicitando acceso a tu GPS...';
-
+    
     startTracking(micro);
 }
 window.selectMicro = selectMicro;
@@ -791,9 +817,9 @@ function startDemoTracking(micro) {
 
     const interval = setInterval(() => {
         const pos = route[Math.min(step, route.length - 1)];
-        document.getElementById('tracking-coords').textContent =
+        document.getElementById('tracking-coords').textContent = 
             `📍 ${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)} (simulado)`;
-
+        
         if (leafletMap) {
             const color = COLORS[micro];
             const sizeHeight = 32;
@@ -804,10 +830,12 @@ function startDemoTracking(micro) {
                 iconSize: [sizeWidth, sizeHeight],
                 iconAnchor: [sizeWidth/2, sizeHeight/2]
             });
+
             if (myMarker) leafletMap.removeLayer(myMarker);
             myMarker = L.marker([pos.lat, pos.lng], { icon })
                 .addTo(leafletMap)
                 .bindPopup('📍 Tú (simulado)');
+            
             leafletMap.panTo([pos.lat, pos.lng]);
         }
         
@@ -837,6 +865,7 @@ function showTrackingUI(micro) {
     document.getElementById('selector-section').classList.add('hidden');
     document.getElementById('tracking-section').classList.remove('hidden');
     document.getElementById('tracking-micro').textContent = `${micro}`;
+
     const btnStopMap = document.getElementById('btn-stop-map');
     if (btnStopMap) btnStopMap.classList.add('active');
 
@@ -856,10 +885,12 @@ function startObserving() {
     observerMode = true;
     showToast('👁️ Modo observador — ves a todos, sin compartir tu posición');
     showScreen('map-screen');
+
     // Asegurar que la escucha de Firebase está activa
     if (!DEMO_MODE && db && leafletMap) {
         initRealTimeUpdates();
     }
+
     // Mostrar badge
     const badge = document.getElementById('observer-badge');
     if (badge) badge.style.display = 'flex';
@@ -871,6 +902,7 @@ function publishMyPosition(lat, lng, micro) {
     lastSyncTime = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
     const coordEl = document.getElementById('tracking-coords');
     const subEl   = document.getElementById('status-subtitle');
+
     if (coordEl) coordEl.textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     if (subEl)   subEl.textContent   = `Última sincronización: ${lastSyncTime}`;
 
@@ -893,9 +925,16 @@ function publishMyPosition(lat, lng, micro) {
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
+
         if (myMarker) leafletMap.removeLayer(myMarker);
         myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap)
             .bindPopup(`<strong>📍 Tú</strong><br>Micro ${micro}<br><small>${lastSyncTime}</small>`);
+
+        // Centrar automáticamente la primera vez que recibimos señal en esta sesión de mapa
+        if (!hasCenteredOnThisSession) {
+            leafletMap.setView([lat, lng], 15);
+            hasCenteredOnThisSession = true;
+        }
     }
 
     // Enviar a Firebase si está activo
@@ -972,6 +1011,7 @@ function stopTracking() {
         watchPublishInterval = null;
     }
     clearInterval(trackingTimer);
+
     if (myMarker && leafletMap) { leafletMap.removeLayer(myMarker); myMarker = null; }
 
     // Eliminar mi entrada de Firebase inmediatamente
@@ -982,13 +1022,13 @@ function stopTracking() {
 
     window.latestPos = null;
     clearProximityUI();
-
     const etaBadge = document.getElementById('eta-badge');
     if (etaBadge) etaBadge.style.display = 'none';
 
     selectedMicro = null;
     document.getElementById('selector-section').classList.remove('hidden');
     document.getElementById('tracking-section').classList.add('hidden');
+
     const btnStopMap = document.getElementById('btn-stop-map');
     if (btnStopMap) btnStopMap.classList.remove('active');
 
@@ -1101,7 +1141,7 @@ if ('serviceWorker' in navigator) {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('🔄 Nueva actualización (v20) detectada. Reiniciando App...');
+                        showToast('🔄 Nueva actualización (v21.1) detectada. Reiniciando App...');
                         setTimeout(() => window.location.reload(true), 2500);
                     }
                 });
@@ -1122,20 +1162,14 @@ if ('serviceWorker' in navigator) {
 // ---- Instalación PWA (Añadir a Inicio) ----
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Prevenir que Chrome muestre el prompt por defecto
     e.preventDefault();
-    // Guardar el evento
     deferredPrompt = e;
-    
-    // Mostrar nuestro botón de instalación
     const installBtn = document.getElementById('btn-install-pwa');
     if (installBtn) {
         installBtn.classList.remove('hidden');
         installBtn.onclick = () => {
             installBtn.classList.add('hidden');
-            // Mostrar prompt de instalación
             deferredPrompt.prompt();
-            // Esperar resultado
             deferredPrompt.userChoice.then((choiceResult) => {
                 if (choiceResult.outcome === 'accepted') {
                     console.log('Usuario aceptó instalar PWA');
@@ -1148,3 +1182,594 @@ window.addEventListener('beforeinstallprompt', (e) => {
     }
 });
 
+
+// ============================================================
+// 🌊 MÓDULO OCEANOGRÁFICO — v21
+// Fuentes: Open-Meteo Marine + Weather API (sin API key, gratis)
+//          WMS tiles: NOAA CoastWatch ERDDAP (TSM + Clorofila)
+//          Windy embed modal
+// ============================================================
+
+// --- Coordenadas FACIMAR / Montemar ---
+const OCEAN_LAT = FACIMAR_LAT;   // -32.957119
+const OCEAN_LNG = FACIMAR_LNG;   // -71.549831
+
+// ---- Convertir grados a dirección de brújula ----
+function degreesToCompass(deg) {
+    if (deg == null) return '–';
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
+                  'S','SSO','SO','OSO','O','ONO','NO','NNO'];
+    return dirs[Math.round(deg / 22.5) % 16];
+}
+
+// ---- Clasificar altura de ola ----
+function waveDescription(h) {
+    if (h == null) return '';
+    if (h < 0.5) return '(calma)';
+    if (h < 1.2) return '(leve)';
+    if (h < 2.5) return '(moderado)';
+    if (h < 4.0) return '(fuerte)';
+    return '(muy fuerte)';
+}
+
+// ---- Obtener emoji para viento (escala Beaufort simplificada) ----
+function windEmoji(spd) {
+    if (spd == null) return '💨';
+    if (spd < 10) return '🍃';
+    if (spd < 25) return '💨';
+    if (spd < 50) return '🌬️';
+    return '🌀';
+}
+
+// ---- Interpretar código WMO de tiempo ----
+function weatherCodeToDescription(code) {
+    if (code == null) return { text: 'Sin datos', icon: '❓' };
+    if (code === 0)                   return { text: 'Despejado',          icon: '☀️' };
+    if (code === 1)                   return { text: 'Mainly clear',       icon: '🌤️' };
+    if (code === 2)                   return { text: 'Parcial. nublado',   icon: '⛅' };
+    if (code === 3)                   return { text: 'Cubierto',           icon: '☁️' };
+    if ([45,48].includes(code))       return { text: 'Niebla',             icon: '🌫️' };
+    if (code >= 51 && code <= 55)     return { text: 'Llovizna',          icon: '🌦️' };
+    if (code >= 61 && code <= 65)     return { text: 'Lluvia',             icon: '🌧️' };
+    if (code >= 71 && code <= 77)     return { text: 'Nieve',              icon: '❄️' };
+    if (code >= 80 && code <= 82)     return { text: 'Chubascos',          icon: '🌦️' };
+    if (code >= 85 && code <= 86)     return { text: 'Nieve/chubascos',    icon: '🌨️' };
+    if (code >= 95 && code <= 99)     return { text: 'Tormenta',           icon: '⛈️' };
+    return { text: 'Variable',        icon: '🌈' };
+}
+
+// ---- Clasificar cobertura nubosa ----
+function cloudCoverText(pct) {
+    if (pct == null) return { text: '–', icon: '❓' };
+    if (pct <= 10)   return { text: `Despejado (${pct}%)`,          icon: '☀️' };
+    if (pct <= 30)   return { text: `Pocas nubes (${pct}%)`,        icon: '🌤️' };
+    if (pct <= 60)   return { text: `Parcialmnte nublado (${pct}%)`, icon: '⛅' };
+    if (pct <= 85)   return { text: `Muy nublado (${pct}%)`,        icon: '🌥️' };
+    return              { text: `Cubierto (${pct}%)`,                icon: '☁️' };
+}
+
+// ---- FETCH datos marinos de Open-Meteo ----
+async function fetchOceanData() {
+    const DOT = document.getElementById('ocean-status-dot');
+    if (DOT) DOT.className = 'ocean-dot ocean-dot-loading';
+
+    const MARINE_URL = `https://marine-api.open-meteo.com/v1/marine?` +
+        `latitude=${OCEAN_LAT}&longitude=${OCEAN_LNG}` +
+        `&current=wave_height,wave_direction,wave_period,` +
+        `swell_wave_height,swell_wave_direction,swell_wave_period,` +
+        `sea_surface_temperature,ocean_current_velocity,ocean_current_direction` +
+        `&wind_speed_unit=kmh&length_unit=metric&timezone=America%2FSantiago`;
+
+    const WEATHER_URL = `https://api.open-meteo.com/v1/forecast?` +
+        `latitude=${OCEAN_LAT}&longitude=${OCEAN_LNG}` +
+        `&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,` +
+        `cloud_cover,weather_code,relative_humidity_2m,apparent_temperature,uv_index` +
+        `&wind_speed_unit=kmh&timezone=America%2FSantiago`;
+
+    try {
+        const [marineResp, weatherResp] = await Promise.all([
+            fetch(MARINE_URL),
+            fetch(WEATHER_URL)
+        ]);
+
+        if (!marineResp.ok || !weatherResp.ok) throw new Error('API error');
+
+        const marine  = await marineResp.json();
+        const weather = await weatherResp.json();
+
+        const c  = marine.current  || {};
+        const wc = weather.current || {};
+
+        // ---- Extraer valores ----
+        const waveH   = c.wave_height != null ? +c.wave_height.toFixed(1) : null;
+        const wavePer = c.wave_period != null ? +c.wave_period.toFixed(0) : null;
+        const waveDir = c.wave_direction != null ? +c.wave_direction.toFixed(0) : null;
+        const sst     = c.sea_surface_temperature != null ? +c.sea_surface_temperature.toFixed(1) : null;
+
+        const windSpd   = wc.wind_speed_10m       != null ? +wc.wind_speed_10m.toFixed(0) : null;
+        const windDir   = wc.wind_direction_10m   != null ? +wc.wind_direction_10m.toFixed(0) : null;
+        const airTemp   = wc.temperature_2m       != null ? +wc.temperature_2m.toFixed(1) : null;
+        const feelTemp  = wc.apparent_temperature != null ? +wc.apparent_temperature.toFixed(1) : null;
+        const cloudPct  = wc.cloud_cover          != null ? Math.round(wc.cloud_cover) : null;
+        const wmoCode   = wc.weather_code         != null ? wc.weather_code : null;
+        const uvIndex   = wc.uv_index             != null ? wc.uv_index : null;
+
+        // ---- Actualizar panel UI ----
+        const set = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        const wmoInfo = weatherCodeToDescription(wmoCode);
+        const cloudInfo = cloudCoverText(cloudPct);
+
+        // Temp. Aire
+        let airTempStr = airTemp != null ? `${airTemp} °C` : '–';
+        if (airTemp != null && feelTemp != null && Math.abs(airTemp - feelTemp) >= 2) {
+            airTempStr = `${airTemp} °C (ST: ${feelTemp}°)`;
+        }
+        set('oc-airtemp-val', airTempStr);
+        const tempIconEl = document.getElementById('oc-airtemp-icon');
+        if (tempIconEl) {
+            tempIconEl.textContent = airTemp != null
+                ? (airTemp <= 8 ? '🥶' : airTemp <= 14 ? '🧥' : airTemp <= 20 ? '😊' : '🌞')
+                : '🌡️';
+        }
+
+        // Nubosidad
+        set('oc-clouds-val', wmoInfo.text + (cloudPct != null ? ` · ${cloudPct}%` : ''));
+        const cloudsIconEl = document.getElementById('oc-clouds-icon');
+        if (cloudsIconEl) cloudsIconEl.textContent = wmoInfo.icon || cloudInfo.icon;
+
+        // Índice UV
+        let uvStatus = 'Bajo';
+        if (uvIndex >= 11) uvStatus = 'Extremo';
+        else if (uvIndex >= 8) uvStatus = 'Muy Alto';
+        else if (uvIndex >= 6) uvStatus = 'Alto';
+        else if (uvIndex >= 3) uvStatus = 'Moderado';
+        set('oc-uv-val', uvIndex != null ? `${uvIndex.toFixed(1)} (${uvStatus})` : '–');
+
+        // Viento
+        set('oc-wind-val', windSpd != null ? `${windEmoji(windSpd)} ${windSpd} km/h ${degreesToCompass(windDir)}` : '–');
+
+        // Océano
+        set('oc-wave-val', waveH != null ? `${waveH} m` : '–');
+        set('oc-period-val', wavePer != null ? `${wavePer} s` : '–');
+        set('oc-sst-val', sst != null ? `${sst} °C` : '–');
+        set('oc-dir-val', waveDir != null ? `${degreesToCompass(waveDir)} (${waveDir}°)` : '–');
+
+        // Mini strip
+        const mosWave = document.getElementById('mos-wave');
+        const mosSst  = document.getElementById('mos-sst');
+        const mosWind = document.getElementById('mos-wind');
+        if (mosWave) mosWave.textContent = `🌊 ${waveH != null ? waveH + ' m' : '–'}`;
+        if (mosSst)  mosSst.textContent  = airTemp != null ? `${wmoInfo.icon} ${airTemp} °C` : `🌡️ ${sst != null ? sst + ' °C' : '–'}`;
+        if (mosWind) mosWind.textContent = `💨 ${windSpd != null ? windSpd + ' km/h' : '–'}`;
+
+        if (DOT) {
+            DOT.className = 'ocean-dot ocean-dot-ok';
+            DOT.title = `Actualizado: ${new Date().toLocaleTimeString()}`;
+        }
+    } catch (err) {
+        console.error('[OCEAN] Error:', err);
+        if (DOT) DOT.className = 'ocean-dot ocean-dot-error';
+    }
+}
+
+fetchOceanData();
+setInterval(fetchOceanData, 30 * 60 * 1000);
+
+// ============================================================
+// 🗺️ CAPAS WMS OCEANOGRÁFICAS
+// ============================================================
+let activeOceanLayer = null;
+let oceanWmsLayer = null;
+
+const OCEAN_LAYERS = {
+    sst: {
+        url:    'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi',
+        layer:  'GHRSST_L4_MUR_Sea_Surface_Temperature',
+        name:   'TSM',
+        emoji:  '🌡️',
+        id:     'btn-layer-sst',
+        legend: 'TSM MUR (NASA GIBS)',
+        style:  '' // NASA GIBS usa paleta térmica por defecto
+    },
+    waves: {
+        url:    'https://pae-paha.pacioos.hawaii.edu/erddap/wms/ww3_global/request',
+        layer:  'ww3_global:significant_wave_height',
+        name:   'Altura Ola',
+        emoji:  '🌊',
+        id:     'btn-layer-waves',
+        legend: 'Oleaje WW3 (PacIOOS)'
+    },
+    chlor: {
+        url:    'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi',
+        layer:  'MODIS_Terra_Chlorophyll_A',
+        name:   'Clorofila-a',
+        emoji:  '🟢',
+        id:     'btn-layer-chlor',
+        legend: 'Clorofila-a (NASA GIBS)'
+    }
+};
+
+function toggleOceanLayer(type) {
+    if (!leafletMap) return;
+    const layerDef = OCEAN_LAYERS[type];
+    if (activeOceanLayer === type) {
+        leafletMap.removeLayer(oceanWmsLayer);
+        oceanWmsLayer = null;
+        activeOceanLayer = null;
+        document.getElementById(layerDef.id).classList.remove('active');
+        document.getElementById('ocean-layer-legend').style.display = 'none';
+        
+        // Al desactivar una capa oceánica amplia, volvemos a centrar en el usuario
+        centerMapOnUser();
+        return;
+    }
+    if (oceanWmsLayer) leafletMap.removeLayer(oceanWmsLayer);
+    
+    Object.values(OCEAN_LAYERS).forEach(l => document.getElementById(l.id).classList.remove('active'));
+    
+    oceanWmsLayer = L.tileLayer.wms(layerDef.url, {
+        layers:      layerDef.layer,
+        styles:      layerDef.style || '', 
+        format:      'image/png',
+        transparent: true,
+        opacity:     0.65,
+        version:     '1.3.0',
+        zIndex:      400,
+        crossOrigin: true,
+        attribution: `Data: ${layerDef.legend}`
+    }).addTo(leafletMap);
+
+    const leg = document.getElementById('ocean-layer-legend');
+    const legN = document.getElementById('ocean-layer-legend-name');
+    leg.style.display = 'flex';
+    legN.textContent = `${layerDef.name} (cargando...)`;
+    oceanWmsLayer.on('load', () => legN.textContent = layerDef.legend);
+    oceanWmsLayer.on('tileerror', () => {
+        legN.textContent = `❌ Error en capa ${layerDef.name}`;
+        showToast(`No se pudo cargar la capa de ${layerDef.name}. Intenta más tarde.`);
+    });
+
+    activeOceanLayer = type;
+    document.getElementById(layerDef.id).classList.add('active');
+
+    // ---- Lógica de centrado dinámico solicitado ----
+    if (type === 'sst' || type === 'chlor') {
+        // Vista amplia costera 30°S a 36°S
+        // Centramos en -33°S, longitud Chile Central
+        leafletMap.setView([-33.0, -73.5], 7, { animate: true, duration: 1.5 });
+    } else {
+        // Para olas o al desactivar, volvemos al usuario
+        centerMapOnUser();
+    }
+}
+window.toggleOceanLayer = toggleOceanLayer;
+
+/**
+ * Centra el mapa en la última posición conocida del usuario
+ */
+function centerMapOnUser() {
+    if (!leafletMap) return;
+    // Si tenemos marcador de usuario, usamos su posición registrada en Firebase
+    if (window.myMarker) {
+        leafletMap.setView(window.myMarker.getLatLng(), 15, { animate: true });
+    } else {
+        // Fallback a Montemar
+        leafletMap.setView([OCEAN_LAT, OCEAN_LNG], 15, { animate: true });
+    }
+}
+window.centerMapOnUser = centerMapOnUser;
+
+// ============================================================
+// 💨 VIENTO ESTILO WINDY — leaflet-velocity
+// ============================================================
+let windVelActive = false;
+let windVelLayer = null;
+// Expandimos la malla para cubrir de 30°S a 36°S (costa central de Chile)
+const WV_GRID = { 
+    la1: -30.0, // Latitud Norte
+    la2: -36.0, // Latitud Sur
+    lo1: -75.0, // Longitud Oeste (Mar)
+    lo2: -71.0, // Longitud Este (Costa)
+    dx: 0.5, 
+    dy: 0.5, 
+    nx: 9,      // (-71 - (-75)) / 0.5 + 1
+    ny: 13      // (-30 - (-36)) / 0.5 + 1
+};
+
+function windToUV(speedKmh, dirDeg) {
+    const rad = dirDeg * Math.PI / 180;
+    return { u: -speedKmh * Math.sin(rad), v: -speedKmh * Math.cos(rad) };
+}
+
+async function fetchWindGrid() {
+    const points = [];
+    for (let r = 0; r < WV_GRID.ny; r++) {
+        for (let c = 0; c < WV_GRID.nx; c++) {
+            points.push({ lat: WV_GRID.la1 - r * WV_GRID.dy, lng: WV_GRID.lo1 + c * WV_GRID.dx });
+        }
+    }
+    const results = await Promise.all(points.map(pt => 
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pt.lat}&longitude=${pt.lng}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kmh`)
+        .then(r => r.json())
+    ));
+    const uData = [], vData = [];
+    results.forEach(d => {
+        const {u, v} = windToUV(d.current.wind_speed_10m, d.current.wind_direction_10m);
+        uData.push(+u.toFixed(2)); vData.push(+v.toFixed(2));
+    });
+    return { uData, vData };
+}
+
+async function drawWindStreamlines() {
+    if (!leafletMap || !windVelActive) return;
+    try {
+        const {uData, vData} = await fetchWindGrid();
+        // Ajustamos el header para que coincida con la nueva malla 30-36S
+        const header = { 
+            parameterCategory: 2, 
+            dx: WV_GRID.dx, 
+            dy: WV_GRID.dy, 
+            la1: WV_GRID.la1, 
+            lo1: WV_GRID.lo1, 
+            la2: WV_GRID.la2, 
+            lo2: WV_GRID.lo2, 
+            nx: WV_GRID.nx, 
+            ny: WV_GRID.ny, 
+            refTime: new Date().toISOString() 
+        };
+        const data = [
+            { header: { ...header, parameterNumber: 2 }, data: uData },
+            { header: { ...header, parameterNumber: 3 }, data: vData }
+        ];
+        if (windVelLayer) leafletMap.removeLayer(windVelLayer);
+        windVelLayer = L.velocityLayer({
+            displayValues: true,
+            displayOptions: { velocityType: 'Viento', speedUnit: 'km/h' },
+            data: data,
+            maxVelocity: 50,
+            particleMultiplier: 1/800, 
+            lineWidth: 1.5,            
+            particleAge: 120,
+            opacity: 0.8,              
+            colorScale: [
+                "#ffffff", "#f8fafc", "#f1f5f9", "#e2e8f0", "#ffffff" 
+            ]
+        }).addTo(leafletMap);
+    } catch(e) { console.error(e); }
+}
+
+function toggleWindArrows() {
+    windVelActive = !windVelActive;
+    const btn = document.getElementById('btn-layer-wind');
+    if (windVelActive) {
+        btn.classList.add('active');
+        drawWindStreamlines();
+        // Ajustamos la vista para este rango amplio solicitado (30-36°S)
+        if (leafletMap) leafletMap.setView([-33.0, -73.5], 7, { animate: true, duration: 1.5 });
+    } else {
+        if (windVelLayer) {
+            leafletMap.removeLayer(windVelLayer);
+            windVelLayer = null;
+        }
+        btn.classList.remove('active');
+        // Al apagar, regresamos al usuario
+        centerMapOnUser();
+    }
+}
+window.toggleWindArrows = toggleWindArrows;
+
+// Radar removido por incompatibilidad de zoom en área local
+
+// ============================================================
+// 🌬️ MODAL WINDY
+// ============================================================
+const WINDY_BASE = `https://embed.windy.com/embed2.html?lat=${OCEAN_LAT}&lon=${OCEAN_LNG}&zoom=10&level=surface&product=ecmwf&metricWind=km%2Fh&metricTemp=%C2%B0C`;
+
+function openWindyModal() {
+    document.getElementById('windy-modal-overlay').classList.remove('hidden');
+    document.getElementById('windy-modal').classList.remove('hidden');
+    document.getElementById('windy-iframe').src = WINDY_BASE + '&overlay=wind';
+}
+window.openWindyModal = openWindyModal;
+
+function closeWindyModal() {
+    document.getElementById('windy-modal-overlay').classList.add('hidden');
+    document.getElementById('windy-modal').classList.add('hidden');
+}
+window.closeWindyModal = closeWindyModal;
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeWindyModal();
+        closeShareModal();
+        closeTideModal();
+    }
+});
+
+// ============================================================
+// 📏 NIVEL DEL MAR (MAREA) — IOC Sea Level Monitoring
+// ============================================================
+async function fetchTideData() {
+    // Pedimos periodo de 3 días para asegurar tener siempre un día completo incluso con alta frecuencia
+    const url = 'https://www.ioc-sealevelmonitoring.org/bgraph.php?code=valp2&output=tab&period=3';
+    // Usamos corsproxy.io por mayor robustez comparado con allorigins
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    
+    try {
+        const resp = await fetch(proxyUrl);
+        const html = await resp.text();
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const rows = doc.querySelectorAll('tr');
+        
+        let tideData = [];
+        // La tabla tiene headers en las primeras dos filas
+        for (let i = 2; i < rows.length; i++) {
+            const cols = rows[i].querySelectorAll('td');
+            if (cols.length >= 3) {
+                const timeStr = cols[0].textContent.trim();
+                const valPrs  = cols[1].textContent.trim();
+                const valRad  = cols[2].textContent.trim();
+                // Rad(m) suele ser más fiable. Si no hay, prs(m).
+                let val = valRad || valPrs;
+                // Limpieza de caracteres raros si los hay
+                val = val.replace(/[^0-9.]/g, ''); 
+                if (timeStr && val) tideData.push({ timeUTC: timeStr, val });
+            }
+        }
+        
+        if (tideData.length > 0) {
+            tideData.reverse(); // Mas recientes primero
+            const latest = tideData[0];
+            
+            // Actualizar card en la pantalla principal
+            const tideEl = document.getElementById('oc-tide-val');
+            if (tideEl) tideEl.textContent = `${latest.val} m`;
+            
+            // Guardar para el modal
+            window.latestTideData = tideData;
+            
+            const updateTimeEl = document.getElementById('tide-update-time');
+            if (updateTimeEl) {
+                const localDate = new Date(latest.timeUTC.replace(' ', 'T') + "Z");
+                const localTime = localDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+                updateTimeEl.textContent = `Actualizado: ${localTime} CLT`;
+            }
+        }
+    } catch (e) {
+        console.warn('[MICS] Error fetching tide data:', e);
+    }
+}
+window.fetchTideData = fetchTideData;
+
+function toggleTideModal() {
+    const modal = document.getElementById('tide-modal');
+    if (!modal) return;
+    
+    if (modal.classList.contains('hidden')) {
+        modal.classList.remove('hidden');
+        renderTideTable();
+    } else {
+        closeTideModal();
+    }
+}
+window.toggleTideModal = toggleTideModal;
+
+function closeTideModal() {
+    const modal = document.getElementById('tide-modal');
+    if (modal) modal.classList.add('hidden');
+}
+window.closeTideModal = closeTideModal;
+
+function renderTideTable() {
+    const container = document.getElementById('tide-table-container');
+    if (!container) return;
+    
+    if (!window.latestTideData || window.latestTideData.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted)">Cargando datos históricos...</p>';
+        fetchTideData().then(() => renderTideTable());
+        return;
+    }
+    
+    let html = `
+        <table class="tide-table">
+            <thead>
+                <tr>
+                    <th>Hora (Local)</th>
+                    <th>Nivel (m)</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    // Mostramos hasta 1000 registros para asegurar ver todo el día y los ciclos de llenante/vaciante
+    window.latestTideData.slice(0, 1000).forEach(d => {
+        // Corrección de formato para iOS/Safari: el espacio suele fallar, usar T
+        const isoStr = d.timeUTC.replace(' ', 'T') + "Z"; 
+        const localDate = new Date(isoStr);
+        const timeStr   = localDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+        const dateStr   = localDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+        
+        html += `
+            <tr>
+                <td>
+                    <strong style="color:#fff">${timeStr}</strong>
+                    <span class="tide-time-local">${dateStr} (Local)</span>
+                </td>
+                <td class="tide-val-recent">${d.val} m</td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    renderTideChart(window.latestTideData);
+}
+let tideChartInstance = null;
+function renderTideChart(data) {
+    const canvas = document.getElementById('tide-chart');
+    if (!canvas) return;
+
+    // Usamos los últimos 240 puntos (aprox 24 horas) para el gráfico solicitado
+    const points = Array.from(data).slice(0, 240).reverse();
+    const labels = points.map(p => {
+        const iso = p.timeUTC.replace(' ', 'T') + "Z";
+        return new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    });
+    const values = points.map(p => parseFloat(p.val));
+
+    if (tideChartInstance) tideChartInstance.destroy();
+
+    tideChartInstance = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Nivel (m)',
+                data: values,
+                borderColor: '#0ea5e9',
+                backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3, // Menos tensión para curvas largas
+                pointRadius: 0,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(2, 12, 27, 0.95)',
+                    titleColor: '#7dd3fc',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(14, 165, 233, 0.3)',
+                    borderWidth: 1,
+                    padding: 10,
+                    displayColors: false
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                    ticks: { color: '#64748b', font: { size: 10 } }
+                }
+            }
+        }
+    });
+}
