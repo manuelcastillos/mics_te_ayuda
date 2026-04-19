@@ -1333,16 +1333,8 @@ async function fetchOceanData() {
         set('oc-wind-val', windSpd != null ? `${windEmoji(windSpd)} ${windSpd} km/h ${degreesToCompass(windDir)}` : '–');
 
         // Océano
-        set('oc-wave-val', waveH != null ? `${waveH} m` : '–');
-        set('oc-period-val', wavePer != null ? `${wavePer} s` : '–');
         set('oc-sst-val', sst != null ? `${sst} °C` : '–');
-        set('oc-dir-val', waveDir != null ? `${degreesToCompass(waveDir)} (${waveDir}°)` : '–');
 
-        // Mini strip
-        const mosWave = document.getElementById('mos-wave');
-        const mosSst  = document.getElementById('mos-sst');
-        const mosWind = document.getElementById('mos-wind');
-        if (mosWave) mosWave.textContent = `🌊 ${waveH != null ? waveH + ' m' : '–'}`;
         if (mosSst)  mosSst.textContent  = airTemp != null ? `${wmoInfo.icon} ${airTemp} °C` : `🌡️ ${sst != null ? sst + ' °C' : '–'}`;
         if (mosWind) mosWind.textContent = `💨 ${windSpd != null ? windSpd + ' km/h' : '–'}`;
 
@@ -1374,22 +1366,6 @@ const OCEAN_LAYERS = {
         id:     'btn-layer-sst',
         legend: 'TSM MUR (NASA GIBS)',
         style:  '' // NASA GIBS usa paleta térmica por defecto
-    },
-    waves: {
-        url:    'https://pae-paha.pacioos.hawaii.edu/erddap/wms/ww3_global/request',
-        layer:  'ww3_global:significant_wave_height',
-        name:   'Altura Ola',
-        emoji:  '🌊',
-        id:     'btn-layer-waves',
-        legend: 'Oleaje WW3 (PacIOOS)'
-    },
-    chlor: {
-        url:    'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi',
-        layer:  'MODIS_Terra_Chlorophyll_A',
-        name:   'Clorofila-a',
-        emoji:  '🟢',
-        id:     'btn-layer-chlor',
-        legend: 'Clorofila-a (NASA GIBS)'
     }
 };
 

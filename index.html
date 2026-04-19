@@ -222,25 +222,10 @@
                         <div class="ocean-card-label">Viento</div>
                     </div>
                     <!-- Fila 2: Océano -->
-                    <div class="ocean-card" id="oc-wave">
-                        <div class="ocean-card-icon">🌊</div>
-                        <div class="ocean-card-value" id="oc-wave-val">–</div>
-                        <div class="ocean-card-label">Altura Ola</div>
-                    </div>
-                    <div class="ocean-card" id="oc-period">
-                        <div class="ocean-card-icon">⏱️</div>
-                        <div class="ocean-card-value" id="oc-period-val">–</div>
-                        <div class="ocean-card-label">Periodo</div>
-                    </div>
                     <div class="ocean-card" id="oc-sst">
                         <div class="ocean-card-icon">🌡️</div>
                         <div class="ocean-card-value" id="oc-sst-val">–</div>
                         <div class="ocean-card-label">TSM</div>
-                    </div>
-                    <div class="ocean-card" id="oc-dir">
-                        <div class="ocean-card-icon">🧭</div>
-                        <div class="ocean-card-value" id="oc-dir-val">–</div>
-                        <div class="ocean-card-label">Dir. Oleaje</div>
                     </div>
                     <div class="ocean-card" id="oc-tide" title="Nivel del Mar en Valparaíso (IOC)">
                         <div class="ocean-card-icon">📈</div>
@@ -286,8 +271,6 @@
                 <button class="btn-heatmap-toggle" onclick="toggleHeatmap()" id="btn-heatmap" title="Modo Densidad (Heatmap)">🔥</button>
                 <!-- Capas océano en el mapa -->
                 <button class="btn-ocean-layer" onclick="toggleOceanLayer('sst')"   id="btn-layer-sst"   title="Temp. Superficial del Mar (MODIS)">🌡️</button>
-                <button class="btn-ocean-layer" onclick="toggleOceanLayer('waves')" id="btn-layer-waves" title="Altura de Ola (NOAA WW3)">🌊</button>
-                <button class="btn-ocean-layer" onclick="toggleOceanLayer('chlor')" id="btn-layer-chlor" title="Clorofila-a (MODIS)">🟢</button>
                 <button class="btn-ocean-layer" onclick="toggleTideModal()" id="btn-layer-tide" title="Marea en Tiempo Real (Valparaíso)">📈</button>
                 <button class="btn-ocean-layer btn-wind-layer" onclick="toggleWindArrows()" id="btn-layer-wind" title="Partículas de Viento">💨</button>
             </div>
