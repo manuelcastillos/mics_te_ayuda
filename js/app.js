@@ -1332,6 +1332,10 @@ async function fetchOceanData() {
         // Viento
         set('oc-wind-val', windSpd != null ? `${windEmoji(windSpd)} ${windSpd} km/h ${degreesToCompass(windDir)}` : '–');
 
+                const curSpd  = c.ocean_current_velocity != null ? +c.ocean_current_velocity.toFixed(2) : null;
+        const curDir  = c.ocean_current_direction != null ? +c.ocean_current_direction.toFixed(0) : null;
+        set('oc-current-val', curSpd != null ? `${curSpd} m/s` : '–');
+
         // Océano
         set('oc-sst-val', sst != null ? `${sst} °C` : '–');
 
