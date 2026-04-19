@@ -1750,3 +1750,26 @@ function renderTideChart(data) {
     });
 }
 
+
+// ============================================================
+// 🚦 CAPA DE TRÁFICO EN TIEMPO REAL (Valparaíso / Viña)
+// ============================================================
+let trafficTileLayer = null;
+
+function toggleTrafficLayer() {
+    const btn = document.getElementById('btn-layer-traffic');
+    if (trafficTileLayer) {
+        leafletMap.removeLayer(trafficTileLayer);
+        trafficTileLayer = null;
+        if (btn) btn.classList.remove('active');
+    } else {
+        // Overlay de tráfico de Google (sin etiquetas de calles para no saturar)
+        trafficTileLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m@221000000,traffic&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            opacity: 0.8
+        }).addTo(leafletMap);
+        if (btn) btn.classList.add('active');
+    }
+}
+window.toggleTrafficLayer = toggleTrafficLayer;
