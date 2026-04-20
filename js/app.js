@@ -22,6 +22,7 @@ let pendingListenerInit = false;
 let hasCenteredOnThisSession = false; // Flag to center map once GPS is found
 
 const DEMO_MODE      = false; // Falso para producción con Firebase
+let currentAlert     = null;  // Alerta comunitaria activa (Fauna, Taco, etc.)
 
 // ---- Inicialización de Firebase ----
 let db = null;
@@ -261,7 +262,8 @@ function updateMapMarkers(activeUsers) {
                 id: u.id, micro: u.micro, lat: u.lat, lng: u.lng, 
                 count: 1, lastUpdate: u.lastUpdate || 0,
                 includesMe: (u.id === myUserId),
-                avatar: u.avatar || '🚌'
+                avatar: u.avatar || '🚌',
+                alert: u.alert || null
             });
         }
     });
@@ -287,7 +289,11 @@ function updateMapMarkers(activeUsers) {
                 const sizeWidth = isBus ? sizeHeight * 1.6 : 42;
                 const icon = L.divIcon({
                     className: '',
-                    html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color, c.count, c.avatar)}</div>`,
+                    html: `
+                        <div style="position:relative; width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">
+                            ${getBusIconHTML(color, c.count, c.avatar)}
+                            ${c.alert ? `<div class="marker-alert-badge">${c.alert}</div>` : ''}
+                        </div>`,
                     iconSize: [sizeWidth, sizeHeight],
                     iconAnchor: [sizeWidth/2, sizeHeight/2]
                 });
@@ -309,13 +315,18 @@ function updateMapMarkers(activeUsers) {
         const sizeWidth = isBus ? sizeHeight * 1.6 : 36;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;">${getBusIconHTML(color, c.count, c.avatar)}</div>`,
+            html: `
+                <div style="position:relative; width:${sizeWidth}px;height:${sizeHeight}px;">
+                    ${getBusIconHTML(color, c.count, c.avatar)}
+                    ${c.alert ? `<div class="marker-alert-badge">${c.alert}</div>` : ''}
+                </div>`,
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
 
         let popupText = `🚌 Micro ${c.micro} · ${timeAgo(c.lastUpdate)}`;
-        if (c.count > 1) popupText = `🚌 Micro ${c.micro} · ${c.count} personas enviando señal juntas.`;
+        if (c.alert) popupText += `<br>🚨 <strong>Reporta: ${c.alert.length > 2 ? c.alert : 'Evento'}</strong>`;
+        if (c.count > 1) popupText = `🚌 Micro ${c.micro} · ${c.count} personas juntas.`;
 
         if (remoteMarkers[c.id]) {
             remoteMarkers[c.id].setLatLng([c.lat, c.lng]);
@@ -921,14 +932,18 @@ function publishMyPosition(lat, lng, micro) {
         const sizeWidth = isBus ? sizeHeight * 1.6 : 42;
         const icon = L.divIcon({
             className: '',
-            html: `<div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color})">${getBusIconHTML(color, 1, myAvatar)}</div>`,
+            html: `
+                <div style="width:${sizeWidth}px;height:${sizeHeight}px;filter:drop-shadow(0 0 6px ${color}); position:relative;">
+                    ${getBusIconHTML(color, 1, myAvatar)}
+                    ${currentAlert ? `<div class="marker-alert-badge">${currentAlert}</div>` : ''}
+                </div>`,
             iconSize: [sizeWidth, sizeHeight],
             iconAnchor: [sizeWidth/2, sizeHeight/2]
         });
 
         if (myMarker) leafletMap.removeLayer(myMarker);
         myMarker = L.marker([lat, lng], { icon }).addTo(leafletMap)
-            .bindPopup(`<strong>📍 Tú</strong><br>Micro ${micro}<br><small>${lastSyncTime}</small>`);
+            .bindPopup(`<strong>📍 Tú</strong><br>Micro ${micro}${currentAlert ? '<br>⚠️ Reportando: ' + currentAlert : ''}<br><small>${lastSyncTime}</small>`);
 
         // Centrar automáticamente la primera vez que recibimos señal en esta sesión de mapa
         if (!hasCenteredOnThisSession) {
@@ -944,6 +959,7 @@ function publishMyPosition(lat, lng, micro) {
         
         db.ref("viajeros/" + myUserId).set({
             lat, lng, micro, avatar: myAvatar,
+            alert: currentAlert,
             lastUpdate: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
             console.log('[MICS] Posición publicada en Firebase ✅');
@@ -1037,9 +1053,47 @@ function stopTracking() {
     document.getElementById('status-title').textContent = '¿Estás en la micro?';
     document.getElementById('status-subtitle').textContent = 'Comparte tu posición para ayudar a tus colegas';
 
+    currentAlert = null;
+    document.getElementById('btn-report-main')?.classList.remove('active');
+    document.getElementById('report-fab-container')?.classList.remove('active');
+
     showToast('👋 ¡Gracias! Tu posición fue retirada del mapa.');
 }
 window.stopTracking = stopTracking;
+
+// ---- Reportes Comunitarios ----
+function toggleReportMenu() {
+    const container = document.getElementById('report-fab-container');
+    const btn = document.getElementById('btn-report-main');
+    container.classList.toggle('active');
+    btn.classList.toggle('active');
+}
+window.toggleReportMenu = toggleReportMenu;
+
+async function sendReport(emoji, type) {
+    // Si es "Todo despejado", reseteamos
+    if (emoji === '✅') {
+        currentAlert = null;
+        showToast('✅ Has limpiado tus reportes');
+    } else {
+        currentAlert = emoji;
+        showToast(`📢 Reporte enviado: ${type} ${emoji}`);
+    }
+
+    // Cerrar menú
+    toggleReportMenu();
+
+    // Si estamos trackeando, forzar actualización en Firebase
+    if (window.latestPos && selectedMicro) {
+        publishMyPosition(window.latestPos.coords.latitude, window.latestPos.coords.longitude, selectedMicro);
+    } else {
+        // Si no estamos trackeando, avisar que necesita activar GPS o estar en micro
+        if (emoji !== '✅') {
+            showToast('📍 Nota: Tu reporte solo se verá si estás compartiendo tu posición.');
+        }
+    }
+}
+window.sendReport = sendReport;
 
 // ---- Centrar mapa en mi posición ----
 function centerOnMe() {

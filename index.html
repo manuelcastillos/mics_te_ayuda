@@ -289,6 +289,20 @@
             <span class="mos-item" id="mos-wind">💨 –</span>
         </div>
         <button class="btn-center-me" id="btn-center-me" onclick="centerOnMe()" title="Centrar en mi posición">📍</button>
+
+        <!-- Botón de Reporte Comunitario (Expandible) -->
+        <div class="report-fab-container" id="report-fab-container">
+            <div class="report-options" id="report-options">
+                <button class="report-opt opt-fauna" onclick="sendReport('🐋', 'Fauna')" title="Avistamiento de Fauna">🐋</button>
+                <button class="report-opt opt-taco" onclick="sendReport('🚦', 'Taco')" title="Taco / Tránsito">🚦</button>
+                <button class="report-opt opt-neblina" onclick="sendReport('🌫️', 'Neblina')" title="Neblina / Baja Visibilidad">🌫️</button>
+                <button class="report-opt opt-clear" onclick="sendReport('✅', null)" title="Todo despejado">✅</button>
+            </div>
+            <button class="btn-report-main" id="btn-report-main" onclick="toggleReportMenu()" title="Reportar a la comunidad">
+                <span class="report-icon">📢</span>
+            </button>
+        </div>
+
         <!-- Botón de Windy flotante -->
         <button class="btn-windy-map" id="btn-windy-map" onclick="openWindyModal()" title="Ver condiciones en Windy">🌬️</button>
         <div class="map-legend">

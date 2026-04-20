@@ -1553,6 +1553,112 @@ html, body {
     font-size: 0.72rem;
 }
 
+/* ---- REPORT FAB (Expandible) ---- */
+.report-fab-container {
+    position: absolute;
+    bottom: calc(10.5rem + env(safe-area-inset-bottom, 1rem));
+    right: 1rem;
+    z-index: 1005;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.btn-report-main {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    border: 2px solid rgba(255,255,255,0.3);
+    color: white;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+    transition: var(--transition);
+}
+
+.btn-report-main:hover {
+    transform: scale(1.1) rotate(5deg);
+    box-shadow: 0 6px 25px rgba(245, 158, 11, 0.6);
+}
+
+.btn-report-main.active {
+    transform: rotate(15deg);
+    background: #0f172a;
+    border-color: #f59e0b;
+}
+
+.report-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.8);
+    transition: var(--transition);
+}
+
+.report-fab-container.active .report-options {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.report-opt {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(13, 27, 46, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.report-opt:hover {
+    transform: scale(1.15);
+    background: rgba(255,255,255,0.1);
+    border-color: var(--accent);
+}
+
+.opt-fauna:hover { border-color: #38bdf8; box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+.opt-taco:hover { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+.opt-neblina:hover { border-color: #94a3b8; box-shadow: 0 0 15px rgba(148, 163, 184, 0.4); }
+.opt-clear:hover { border-color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+
+/* Badge de alerta en el marcador del mapa */
+.marker-alert-badge {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    background: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    border: 1px solid rgba(0,0,0,0.1);
+    z-index: 5;
+    animation: alert-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes alert-pop {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 380px) {
     .ocean-grid { grid-template-columns: repeat(2, 1fr); }
