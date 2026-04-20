@@ -20,6 +20,7 @@ let observerMode     = false; // Modo solo-ver: conecta a Firebase pero no publi
 let listenerActive   = false; 
 let pendingListenerInit = false; 
 let hasCenteredOnThisSession = false; // Flag to center map once GPS is found
+let sedeMarkers = []; // Array para guardar los marcadores de las sedes universitarias
 
 const DEMO_MODE      = false; // Falso para producción con Firebase
 let currentAlert     = null;  // Alerta comunitaria activa (Fauna, Taco, etc.)
@@ -413,6 +414,8 @@ function initMapIfNeeded() {
                 <div style="font-family:sans-serif; text-align:center;">
                     <strong>📍 ${sede.label}</strong>
                 </div>`);
+        
+        sedeMarkers.push(marker); // Guardar para ocultar después
         
         if (sede.label === "FACIMAR UV") {
             marker.openPopup();
@@ -1195,7 +1198,7 @@ if ('serviceWorker' in navigator) {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('🔄 Nueva actualización (v22) detectada. Reiniciando App...');
+                        showToast('🔄 Nueva actualización (v23) detectada. Reiniciando App...');
                         setTimeout(() => window.location.reload(true), 2500);
                     }
                 });
@@ -1466,22 +1469,44 @@ function toggleOceanLayer(type) {
     activeOceanLayer = type;
     document.getElementById(layerDef.id).classList.add('active');
 
-    // ---- Lógica de centrado dinámico solicitado ----
+    // ---- Lógica de visibilidad Regional ----
     if (type === 'sst' || type === 'chlor') {
+        // En modo regional (TSM), ocultamos la leyenda de micros y mostramos la escala de temp
+        document.querySelector('.map-legend').classList.add('regional-mode-hidden');
+        document.getElementById('sst-legend').classList.remove('hidden');
+        
+        // Ocultar marcadores de sedes para limpiar el mapa
+        sedeMarkers.forEach(m => leafletMap.removeLayer(m));
+
         // Vista amplia costera 30°S a 36°S
-        // Centramos en -33°S, longitud Chile Central
         leafletMap.setView([-33.0, -73.5], 7, { animate: true, duration: 1.5 });
     } else {
-        // Para olas o al desactivar, volvemos al usuario
+        // Al desactivar o cambiar a otra, limpiamos el modo regional
+        resetRegionalUI();
         centerMapOnUser();
     }
 }
 window.toggleOceanLayer = toggleOceanLayer;
 
+function resetRegionalUI() {
+    if (!leafletMap) return;
+    
+    // Mostrar leyenda de micros
+    document.querySelector('.map-legend').classList.remove('regional-mode-hidden');
+    // Ocultar escala de temp
+    document.getElementById('sst-legend').classList.add('hidden');
+    
+    // Mostrar marcadores de sedes de nuevo
+    sedeMarkers.forEach(m => m.addTo(leafletMap));
+}
+
 /**
  * Centra el mapa en la última posición conocida del usuario
  */
 function centerMapOnUser() {
+    // Resetear UI regional primero por seguridad
+    resetRegionalUI();
+    
     if (!leafletMap) return;
     // Si tenemos marcador de usuario, usamos su posición registrada en Firebase
     if (window.myMarker) {
@@ -1578,6 +1603,11 @@ function toggleWindArrows() {
     if (windVelActive) {
         btn.classList.add('active');
         drawWindStreamlines();
+        
+        // Modo regional para vientos
+        document.querySelector('.map-legend').classList.add('regional-mode-hidden');
+        sedeMarkers.forEach(m => leafletMap.removeLayer(m));
+
         // Ajustamos la vista para este rango amplio solicitado (30-36°S)
         if (leafletMap) leafletMap.setView([-33.0, -73.5], 7, { animate: true, duration: 1.5 });
     } else {
@@ -1586,7 +1616,8 @@ function toggleWindArrows() {
             windVelLayer = null;
         }
         btn.classList.remove('active');
-        // Al apagar, regresamos al usuario
+        // Al apagar, regresamos al usuario y restauramos UI
+        resetRegionalUI();
         centerMapOnUser();
     }
 }
