@@ -1,10 +1,10 @@
 // ============================================================
-// MICS TE AYUDA — Service Worker v23
+// MICS TE AYUDA — Service Worker v24
 // Estrategia: Network-first para HTML/JS/CSS (siempre código fresco)
 //             Cache-first solo para imágenes/íconos (assets estáticos)
 // ============================================================
 
-const CACHE_NAME = 'mics-te-ayuda-v23';
+const CACHE_NAME = 'mics-te-ayuda-v24';
 
 // Assets que se cachean solo como FALLBACK offline (no bloquean actualizaciones)
 const OFFLINE_FALLBACKS = [
@@ -24,7 +24,7 @@ const STATIC_ASSETS = [
 
 // Instalar: pre-cachear solo íconos, guardar fallbacks sin bloquear
 self.addEventListener('install', (event) => {
-    console.log('[SW v23] Instalando...');
+    console.log('[SW v24] Instalando...');
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             // Cachear íconos estáticos (no cambian)
@@ -39,7 +39,7 @@ self.addEventListener('install', (event) => {
 
 // Activar: eliminar TODOS los caches anteriores
 self.addEventListener('activate', (event) => {
-    console.log('[SW v23] Activando, limpiando caches antiguas...');
+    console.log('[SW v24] Activando, limpiando caches antiguas...');
     event.waitUntil(
         caches.keys().then((keys) =>
             Promise.all(

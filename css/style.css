@@ -1716,9 +1716,7 @@ html, body {
 
 /* Ocultar elementos en modo regional */
 .regional-mode-hidden {
-    opacity: 0 !important;
-    pointer-events: none !important;
-    transition: opacity 0.4s ease !important;
+    display: none !important;
 }
 
 /* ---- Responsive ---- */
