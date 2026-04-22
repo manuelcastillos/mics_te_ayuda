@@ -1080,11 +1080,14 @@ async function sendReport(emoji, type) {
         showToast('✅ Has limpiado tus reportes');
     } else {
         currentAlert = emoji;
-        showToast(`📢 Reporte enviado: ${type} ${emoji}`);
+        showToast(`📢 Reporte enviado: ${type || ''} ${emoji}`);
     }
 
-    // Cerrar menú
-    toggleReportMenu();
+    // Cerrar menú flotante si está abierto
+    const container = document.getElementById('report-fab-container');
+    if (container && container.classList.contains('active')) {
+        toggleReportMenu();
+    }
 
     // Si estamos trackeando, forzar actualización en Firebase
     if (window.latestPos && selectedMicro) {
@@ -1198,7 +1201,7 @@ if ('serviceWorker' in navigator) {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('🔄 Nueva actualización (v25) detectada. Reiniciando App...');
+                        showToast('🔄 Nueva actualización (v26) detectada. Reiniciando App...');
                         setTimeout(() => window.location.reload(true), 2500);
                     }
                 });
